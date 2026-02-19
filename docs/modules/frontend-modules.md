@@ -10,7 +10,7 @@ MediSureAI's frontend is built with modern web technologies optimized for perfor
 
 **Core Technologies**:
 - **React 18**: Component-based UI library with hooks
-- **TypeScript**: Type-safe development with excellent IDE support
+- **JavaScript (JSX)**: All components and files use .js/.jsx extensions (no TypeScript)
 - **Vite**: Lightning-fast dev server and optimized production builds
 - **Tailwind CSS**: Utility-first CSS framework for responsive design
 - **Zustand**: Lightweight state management (alternative to Redux)
@@ -464,48 +464,12 @@ Provide a clean abstraction over HTTP communication with the backend, handle aut
 ### File Structure
 ```
 src/api/
-├── axiosConfig.ts       # Axios instance with interceptors
-├── authApi.ts           # Auth endpoints
-├── claimApi.ts          # Claim endpoints
-├── treatmentApi.ts      # Treatment endpoints
-├── policyApi.ts         # Policy endpoints
-├── decisionApi.ts       # Decision endpoints
-└── adminApi.ts          # Admin endpoints
-```
-
-### axiosConfig.ts
-
-**Purpose**: Configure Axios instance with base URL, interceptors, and error handling
-
-**Features**:
-- Base URL from environment variable (VITE_API_BASE_URL)
-- Request interceptor: Attach JWT token from auth store to Authorization header
-- Response interceptor: Handle 401 (redirect to login), 403 (show error), 500 (show generic error)
-- Error transformation: Convert backend errors to user-friendly messages
-- Request timeout: 30 seconds
-- Retry logic: Retry failed requests 3 times with exponential backoff
-
-**Usage**:
-All API files import the configured axios instance:
-```
-import api from './axiosConfig';
-```
-
-### authApi.ts
-
-**Functions**:
-- register(data: RegisterRequest): Promise<AuthResponse>
-- login(data: LoginRequest): Promise<AuthResponse>
-- refreshToken(refreshToken: string): Promise<AuthResponse>
-- logout(): Promise<void>
-- getCurrentUser(): Promise<UserDTO>
-
-**Usage**:
-```
-import { login } from '@/api/authApi';
-
-const response = await login({ email, password });
-// response.token stored in authStore
+├── claimApi.ts
+├── treatmentApi.ts
+├── policyApi.ts
+├── decisionApi.ts
+├── authApi.ts
+└── adminApi.ts
 ```
 
 ### claimApi.ts

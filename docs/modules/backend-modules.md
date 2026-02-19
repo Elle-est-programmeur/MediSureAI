@@ -271,7 +271,14 @@ Manage medical treatment records, validate treatment plans against clinical guid
 
 #### TreatmentController
 **Endpoints**:
-- POST /api/v1/treatments/create - Create treatment record (doctor only)
+- POST /api/v1/treatments - Create treatment record (doctor only, REST convention)
+#### BillingController
+**Endpoints**:
+- POST /api/v1/billing/analyze - Analyze and explain uploaded hospital bill (patient only)
+
+#### DecisionController
+**Endpoints** (additions):
+- POST /api/v1/decisions/{decisionId}/feedback - Submit feedback on a decision (patient/doctor)
 - GET /api/v1/treatments/{treatmentId} - Get treatment details
 - GET /api/v1/treatments/patient/{patientId} - Patient's treatment history
 - POST /api/v1/treatments/validate - Validate treatment plan against guidelines

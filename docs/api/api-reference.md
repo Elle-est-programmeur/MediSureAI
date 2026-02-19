@@ -458,7 +458,58 @@ Token payload example:
 
 ### Create Treatment Record
 
-**Endpoint**: POST /api/v1/treatments/create
+**Endpoint**: POST /api/v1/treatments
+### Analyze Hospital Bill
+
+**Endpoint**: POST /api/v1/billing/analyze
+
+**Purpose**: Upload and analyze a hospital bill, returning a breakdown and coverage mapping
+
+**Who calls it**: PATIENT role only
+
+**Request Body**:
+```
+{
+  "billFile": "<base64-encoded or file upload>",
+  "policyId": "661e8400-e29b-41d4-a716-446655440002"
+}
+```
+
+**Response** (200 OK):
+```
+{
+  "success": true,
+  "data": {
+    "itemizedBreakdown": [ ... ],
+    "coverageMapping": { ... },
+    "explanations": [ ... ]
+  }
+}
+```
+
+### Submit Decision Feedback
+
+**Endpoint**: POST /api/v1/decisions/{decisionId}/feedback
+
+**Purpose**: Submit feedback on a decision (helpfulness, accuracy, etc.)
+
+**Who calls it**: PATIENT or DOCTOR
+
+**Request Body**:
+```
+{
+  "feedback": "The explanation was clear and helpful.",
+  "rating": 5
+}
+```
+
+**Response** (200 OK):
+```
+{
+  "success": true,
+  "message": "Feedback submitted successfully."
+}
+```
 
 **Purpose**: Record new treatment provided to patient
 

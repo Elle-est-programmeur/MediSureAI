@@ -9,77 +9,73 @@
 
 ```
 medisure-ai/
-├── frontend/                        # React + TypeScript + Vite
+├── frontend/                        # React + JavaScript (JSX) + Vite
 │   ├── public/
 │   ├── src/
 │   │   ├── api/                     # Axios API service layer
-│   │   │   ├── claimApi.ts
-│   │   │   ├── treatmentApi.ts
-│   │   │   ├── policyApi.ts
-│   │   │   ├── decisionApi.ts
-│   │   │   └── authApi.ts
+│   │   │   ├── claimApi.js
+│   │   │   ├── treatmentApi.js
+│   │   │   ├── policyApi.js
+│   │   │   ├── decisionApi.js
+│   │   │   ├── authApi.js
+│   │   │   └── adminApi.js
 │   │   ├── components/
 │   │   │   ├── common/              # Shared UI components
-│   │   │   │   ├── Navbar.tsx
-│   │   │   │   ├── Sidebar.tsx
-│   │   │   │   ├── LoadingSpinner.tsx
-│   │   │   │   └── ExplanationCard.tsx
+│   │   │   │   ├── Navbar.jsx
+│   │   │   │   ├── Sidebar.jsx
+│   │   │   │   ├── LoadingSpinner.jsx
+│   │   │   │   └── ExplanationCard.jsx
 │   │   │   ├── claim/
-│   │   │   │   ├── ClaimForm.tsx
-│   │   │   │   ├── ClaimStatus.tsx
-│   │   │   │   └── ClaimHistory.tsx
+│   │   │   │   ├── ClaimForm.jsx
+│   │   │   │   ├── ClaimStatus.jsx
+│   │   │   │   └── ClaimHistory.jsx
 │   │   │   ├── treatment/
-│   │   │   │   ├── TreatmentForm.tsx
-│   │   │   │   └── GuidelineViewer.tsx
+│   │   │   │   ├── TreatmentForm.jsx
+│   │   │   │   └── GuidelineViewer.jsx
 │   │   │   ├── decision/
-│   │   │   │   ├── DecisionResult.tsx
-│   │   │   │   ├── ConfidenceScore.tsx
-│   │   │   │   └── ReasoningTrace.tsx
+│   │   │   │   ├── DecisionResult.jsx
+│   │   │   │   ├── ConfidenceScore.jsx
+│   │   │   │   └── ReasoningTrace.jsx
 │   │   │   └── policy/
-│   │   │       ├── PolicyUploader.tsx
-│   │   │       └── CoverageBreakdown.tsx
+│   │   │       ├── PolicyUploader.jsx
+│   │   │       └── CoverageBreakdown.jsx
 │   │   ├── pages/
 │   │   │   ├── auth/
-│   │   │   │   ├── Login.tsx
-│   │   │   │   └── Register.tsx
+│   │   │   │   ├── Login.jsx
+│   │   │   │   └── Register.jsx
 │   │   │   ├── doctor/
-│   │   │   │   ├── DoctorDashboard.tsx
-│   │   │   │   ├── TreatmentValidation.tsx
-│   │   │   │   └── DrugSafetyChecker.tsx
+│   │   │   │   ├── DoctorDashboard.jsx
+│   │   │   │   ├── TreatmentValidation.jsx
+│   │   │   │   └── DrugSafetyChecker.jsx
 │   │   │   ├── patient/
-│   │   │   │   ├── PatientDashboard.tsx
-│   │   │   │   ├── PolicyAnalyzer.tsx
-│   │   │   │   ├── ClaimSubmission.tsx
-│   │   │   │   └── BillExplainer.tsx
+│   │   │   │   ├── PatientDashboard.jsx
+│   │   │   │   ├── PolicyAnalyzer.jsx
+│   │   │   │   ├── ClaimSubmission.jsx
+│   │   │   │   └── BillExplainer.jsx
 │   │   │   └── admin/
-│   │   │       ├── AdminDashboard.tsx
-│   │   │       ├── ClaimReview.tsx
-│   │   │       └── AuditTrail.tsx
+│   │   │       ├── AdminDashboard.jsx
+│   │   │       ├── ClaimReview.jsx
+│   │   │       └── AuditTrail.jsx
 │   │   ├── hooks/
-│   │   │   ├── useAuth.ts
-│   │   │   ├── useClaim.ts
-│   │   │   ├── useDecision.ts
-│   │   │   └── usePolicy.ts
+│   │   │   ├── useAuth.js
+│   │   │   ├── useClaim.js
+│   │   │   ├── useDecision.js
+│   │   │   └── usePolicy.js
 │   │   ├── store/                   # Zustand state management
-│   │   │   ├── authStore.ts
-│   │   │   ├── claimStore.ts
-│   │   │   └── decisionStore.ts
-│   │   ├── types/
-│   │   │   ├── claim.types.ts
-│   │   │   ├── policy.types.ts
-│   │   │   ├── treatment.types.ts
-│   │   │   └── decision.types.ts
+│   │   │   ├── authStore.js
+│   │   │   ├── claimStore.js
+│   │   │   └── decisionStore.js
 │   │   ├── utils/
-│   │   │   ├── formatters.ts
-│   │   │   ├── validators.ts
-│   │   │   └── constants.ts
+│   │   │   ├── formatters.js
+│   │   │   ├── validators.js
+│   │   │   └── constants.js
 │   │   ├── config/
-│   │   │   └── axiosConfig.ts
-│   │   ├── App.tsx
-│   │   └── main.tsx
+│   │   │   └── axiosConfig.js
+│   │   ├── App.jsx
+│   │   └── main.jsx
 │   ├── index.html
-│   ├── tailwind.config.ts
-│   ├── vite.config.ts
+│   ├── tailwind.config.js
+│   ├── vite.config.js
 │   └── package.json
 │
 ├── backend/                         # Java Spring Boot
@@ -400,8 +396,8 @@ public class ExplanationEngine {
 
 ### Role-Based Routing
 
-```tsx
-// App.tsx
+```jsx
+// App.jsx
 <Routes>
   <Route path="/login" element={<Login />} />
   <Route path="/patient/*" element={<ProtectedRoute role="PATIENT"><PatientRoutes /></ProtectedRoute>} />
@@ -425,9 +421,9 @@ public class ExplanationEngine {
 
 ### Decision Explanation UI
 
-```tsx
-// DecisionResult.tsx
-const DecisionResult = ({ decision }: Props) => (
+```jsx
+// DecisionResult.jsx
+const DecisionResult = ({ decision }) => (
   <div className="space-y-4">
     <StatusBadge status={decision.status} />         {/* Approved / Rejected / Partial */}
     <ConfidenceScore score={decision.confidence} />  {/* Visual percentage */}
@@ -440,9 +436,18 @@ const DecisionResult = ({ decision }: Props) => (
 
 ### State Management (Zustand)
 
-```ts
-// claimStore.ts
-interface ClaimStore {
+```js
+// claimStore.js
+// ClaimStore structure (using JSDoc for types):
+/**
+ * @typedef {Object} ClaimStore
+ * @property {Claim[]} claims
+ * @property {Claim|null} activeClaim
+ * @property {boolean} isLoading
+ * @property {Function} submitClaim
+ * @property {Function} fetchClaims
+ */
+const useClaimStore = create((set) => ({
   claims: Claim[];
   activeClaim: Claim | null;
   isLoading: boolean;
@@ -564,6 +569,7 @@ PUT    /api/v1/claims/{claimId}/status       # Update claim status
 
 ### Treatments
 ```
+POST   /api/v1/treatments                     # Create treatment record (REST convention)
 POST   /api/v1/treatments/validate           # Validate treatment plan
 POST   /api/v1/treatments/drug-check         # Drug interaction check
 GET    /api/v1/treatments/{treatmentId}
@@ -578,9 +584,15 @@ GET    /api/v1/policies/{policyId}/coverage  # Coverage breakdown
 
 ### Decisions
 ```
-POST   /api/v1/decisions/generate            # Trigger agent decision
-GET    /api/v1/decisions/{decisionId}        # Full decision + explanation
-GET    /api/v1/decisions/claim/{claimId}     # Decision for a claim
+POST   /api/v1/decisions/generate                   # Trigger agent decision
+GET    /api/v1/decisions/{decisionId}               # Full decision + explanation
+GET    /api/v1/decisions/claim/{claimId}            # Decision for a claim
+POST   /api/v1/decisions/{decisionId}/feedback      # Submit feedback on decision
+```
+
+### Billing
+```
+POST   /api/v1/billing/analyze                      # Analyze and explain hospital bill
 ```
 
 ### Sample Request/Response
@@ -722,12 +734,12 @@ mvn spring-boot:run -Dspring.profiles.active=dev
 # Backend runs at http://localhost:8080
 ```
 
-### 4. Vector DB Setup (Chroma)
+### 4. Vector DB Setup (ChromaDB)
 ```bash
 pip install chromadb
-chroma run --path ./chroma-data --port 8001
+chroma run --path ./chroma-data --port 8000
 # OR use Docker:
-docker run -p 8001:8001 chromadb/chroma
+docker run -p 8000:8000 chromadb/chroma
 ```
 
 ### 5. Document Ingestion
@@ -766,7 +778,7 @@ services:
 
   chroma:
     image: chromadb/chroma
-    ports: ["8001:8001"]
+    ports: ["8000:8000"]
 
   backend:
     build:
@@ -886,9 +898,9 @@ provides transparent, explainable outcomes.
 
 | Layer | Technology |
 |---|---|
-| Frontend | React, TypeScript, Vite, Tailwind CSS |
+| Frontend | React, JavaScript (JSX), Vite, Tailwind CSS |
 | Backend | Java 17, Spring Boot 3, Spring AI |
-| AI | OpenAI / Ollama (LLM), Chroma (Vector DB) |
+| AI | OpenAI / Ollama (LLM), ChromaDB (Vector DB, port 8000) |
 | Database | PostgreSQL |
 | DevOps | Docker, Docker Compose |
 

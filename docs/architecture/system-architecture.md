@@ -191,22 +191,16 @@ MediSureAI employs a polyglot persistence strategy:
 - Used for transactional operations (ACID compliance)
 - Indexed on frequently queried columns for performance
 
-**ChromaDB (Vector Database)**
+**ChromaDB (Vector Database, port 8000)**
 - Stores document embeddings for semantic search
 - Collections: insurance_policies, medical_guidelines, drug_information
 - Supports cosine similarity search for RAG retrieval
 - Stores metadata alongside vectors for filtering
 - Enables hybrid search combining semantic and keyword matching
 
-**Drug Database**
-- Can be an external API or local database
-- Contains drug interaction data, contraindications, side effects
-- Updated periodically with latest pharmaceutical research
-
-**Coverage Rules Database**
-- Stores structured policy rules for deterministic coverage calculation
-- Examples: co-pay percentages, annual limits, excluded treatments
-- Loaded into memory cache for fast lookups
+**Drug Data Source**
+- Drug interaction data is stored in ChromaDB (vector DB, port 8000) as the single source of truth for semantic search and retrieval.
+- A small PostgreSQL seed table may be used for common interactions, but all agent queries use ChromaDB.
 
 All database connections use connection pooling for efficiency. Spring Data JPA is used for PostgreSQL access with repository pattern. ChromaDB is accessed via HTTP client or SDK.
 

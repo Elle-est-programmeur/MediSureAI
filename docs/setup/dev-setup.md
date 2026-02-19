@@ -106,6 +106,30 @@ OLLAMA_MODEL=llama3:70b
 # ChromaDB Configuration
 CHROMA_HOST=localhost
 CHROMA_PORT=8000
+## Test Configuration
+
+For backend tests, create a separate test configuration file:
+
+`backend/src/test/resources/application-test.yml`
+
+Example content:
+```yaml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/medisure_test_db
+    username: medisure_test_user
+    password: test_password
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+  chromadb:
+    host: localhost
+    port: 8000
+    collection: medisure_embeddings_test
+```
+
+This ensures tests run against a separate test database and ChromaDB collection.
 CHROMA_COLLECTION=medisure_embeddings
 
 # Server Configuration
