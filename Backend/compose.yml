@@ -32,3 +32,38 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  medsureai-db:
+    container_name: medsureai-db
+    image: postgres:16
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_DB=medsureai
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=Shreyas@sept12
+    volumes:
+      - ./volume-data/medsureai:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d medsureai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: medisure-backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://medsureai-db:5432/medsureai
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: Shreyas@sept12
+    depends_on:
+      medsureai-db:
+        condition: service_healthy
+    restart: unless-stopped
