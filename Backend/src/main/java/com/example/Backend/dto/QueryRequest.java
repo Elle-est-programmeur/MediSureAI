@@ -1,0 +1,17 @@
+package com.example.Backend.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
+
+@Data
+public class QueryRequest {
+
+    @NotBlank(message = "Query is required")
+    private String query;
+
+    /** Optional: restrict retrieval to a specific document. */
+    private Long documentId;
+
+    /** When true, response includes the full agent execution trace. */
+    private Boolean includeSteps = false;
+}

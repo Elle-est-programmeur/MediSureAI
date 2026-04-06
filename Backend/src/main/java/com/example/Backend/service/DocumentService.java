@@ -2,6 +2,7 @@ package com.example.Backend.service;
 
 import com.example.Backend.dto.DocumentUploadResponse;
 import com.example.Backend.model.Document;
+import com.example.Backend.model.DocumentStatus;
 import com.example.Backend.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +22,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Legacy RAG document service — uses Spring AI's PDF reader + pgvector embeddings.
+ * Retained as the Phase 3 bridge: once Ollama is running this pipeline re-activates.
+ * Phase 2 document processing (Tika + MongoDB) is handled by DocumentProcessingService.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -30,99 +36,71 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
 
     public DocumentUploadResponse processDocument(MultipartFile file) {
-        log.info("Processing document: {}", file.getOriginalFilename());
-        
+        log.info("Processing document via RAG pipeline: {}", file.getOriginalFilename());
+
         Document document = Document.builder()
-            .fileName(file.getOriginalFilename())
-            .contentType(file.getContentType())
-            .fileSize(file.getSize())
-            .uploadedAt(LocalDateTime.now())
-            .status("PROCESSING")
-            .chunkCount(0)
-            .build();
-        
+                .fileName(file.getOriginalFilename())
+                .originalFileName(file.getOriginalFilename())
+                .contentType(file.getContentType())
+                .fileSize(file.getSize())
+                .uploadedAt(LocalDateTime.now())
+                .status(DocumentStatus.PROCESSING)
+                .chunkCount(0)
+                .build();
+
         document = documentRepository.save(document);
 
         try {
-            // Save file temporarily
             Path tempFile = Files.createTempFile("upload-", file.getOriginalFilename());
             file.transferTo(tempFile.toFile());
 
-            // Process based on file type
             List<org.springframework.ai.document.Document> documents;
-            
-            if (file.getContentType() != null && file.getContentType().equals("application/pdf")) {
-                documents = processPdfDocument(tempFile);
+            if ("application/pdf".equals(file.getContentType())) {
+                documents = processPdf(tempFile);
             } else {
-                documents = processTextDocument(tempFile);
+                documents = processText(tempFile);
             }
 
-            // Split documents into chunks
             TokenTextSplitter splitter = new TokenTextSplitter();
             List<org.springframework.ai.document.Document> chunks = splitter.apply(documents);
 
-            // Add metadata to each chunk
             for (org.springframework.ai.document.Document chunk : chunks) {
                 chunk.getMetadata().put("document_id", document.getId().toString());
                 chunk.getMetadata().put("file_name", document.getFileName());
                 chunk.getMetadata().put("upload_time", document.getUploadedAt().toString());
             }
 
-            // Store embeddings in vector store
             vectorStore.add(chunks);
 
-            // Update document status
-            document.setStatus("COMPLETED");
+            document.setStatus(DocumentStatus.COMPLETED);
             document.setChunkCount(chunks.size());
             documentRepository.save(document);
 
-            // Clean up temp file
             Files.deleteIfExists(tempFile);
-
-            log.info("Successfully processed document {} with {} chunks", 
-                file.getOriginalFilename(), chunks.size());
+            log.info("RAG pipeline processed {} → {} chunks", file.getOriginalFilename(), chunks.size());
 
             return DocumentUploadResponse.builder()
-                .documentId(document.getId())
-                .fileName(document.getFileName())
-                .status("COMPLETED")
-                .chunkCount(chunks.size())
-                .message("Document processed successfully")
-                .build();
+                    .documentId(document.getId())
+                    .fileName(document.getFileName())
+                    .status(DocumentStatus.COMPLETED)
+                    .chunkCount(chunks.size())
+                    .message("Document processed and indexed in vector store")
+                    .build();
 
         } catch (Exception e) {
-            log.error("Error processing document: {}", e.getMessage(), e);
-            document.setStatus("FAILED");
+            log.error("RAG pipeline failed for {}: {}", file.getOriginalFilename(), e.getMessage(), e);
+            document.setStatus(DocumentStatus.FAILED);
             document.setErrorMessage(e.getMessage());
             documentRepository.save(document);
 
             return DocumentUploadResponse.builder()
-                .documentId(document.getId())
-                .fileName(document.getFileName())
-                .status("FAILED")
-                .chunkCount(0)
-                .message("Error processing document: " + e.getMessage())
-                .build();
+                    .documentId(document.getId())
+                    .fileName(document.getFileName())
+                    .status(DocumentStatus.FAILED)
+                    .chunkCount(0)
+                    .message("Processing error: " + e.getMessage())
+                    .build();
         }
-    }
-
-    private List<org.springframework.ai.document.Document> processPdfDocument(Path filePath) {
-        log.info("Processing PDF document");
-        Resource resource = new FileSystemResource(filePath.toFile());
-        DocumentReader reader = new PagePdfDocumentReader(resource);
-        return reader.get();
-    }
-
-    private List<org.springframework.ai.document.Document> processTextDocument(Path filePath) throws IOException {
-        log.info("Processing text document");
-        String content = Files.readString(filePath);
-        
-        org.springframework.ai.document.Document doc = new org.springframework.ai.document.Document(
-            content,
-            Map.of("source", filePath.getFileName().toString())
-        );
-        
-        return List.of(doc);
     }
 
     public List<Document> getAllDocuments() {
@@ -130,6 +108,19 @@ public class DocumentService {
     }
 
     public List<Document> getCompletedDocuments() {
-        return documentRepository.findByStatusOrderByUploadedAtDesc("COMPLETED");
+        return documentRepository.findByStatusOrderByUploadedAtDesc(DocumentStatus.COMPLETED);
+    }
+
+    private List<org.springframework.ai.document.Document> processPdf(Path filePath) {
+        Resource resource = new FileSystemResource(filePath.toFile());
+        DocumentReader reader = new PagePdfDocumentReader(resource);
+        return reader.get();
+    }
+
+    private List<org.springframework.ai.document.Document> processText(Path filePath) throws IOException {
+        String content = Files.readString(filePath);
+        return List.of(new org.springframework.ai.document.Document(
+                content, Map.of("source", filePath.getFileName().toString())
+        ));
     }
 }
