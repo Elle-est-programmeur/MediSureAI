@@ -29,9 +29,13 @@ Spring Boot REST API  (JWT-authenticated)
   ├─ Phase 4: Agentic Core  (POST /api/query)
   │     IntentDetection → TaskPlanning → VectorSearch → LLM Reasoning
   │
-  └─ Phase 5: SRLM Pipeline  (POST /api/srlm)
-        IntentDetection → VectorSearch → MultiReasoning (3 paths, temp=0.7)
-        → SelfReflection → Scoring → Synthesis → Final Answer
+  ├─ Phase 5: SRLM Pipeline  (POST /api/srlm)
+  │     IntentDetection → VectorSearch → MultiReasoning (3 paths, temp=0.7)
+  │     → SelfReflection → Scoring → Synthesis → Final Answer
+  │
+  └─ Phase 6: Production Enhancements
+        ToolOrchestration + ConfidenceCalibration + RetrievalFeedbackLoop
+        + SafetyGuardrails + SessionMemory
 ```
 
 ---
@@ -105,6 +109,12 @@ srlm.reasoning.temperature=0.7
 srlm.reflection.enabled=true
 srlm.scoring.min-confidence=6.0
 srlm.synthesis.enabled=true
+
+# Phase 6
+srlm.feedback.enabled=true
+srlm.feedback.confidence-threshold=6.0
+safety.min-confidence=4.0
+session.memory.max-queries=10
 ```
 
 ---
@@ -143,3 +153,11 @@ srlm.synthesis.enabled=true
 | POST | `/api/query/debug` | Bearer | Phase 4 with trace |
 | POST | `/api/srlm` | Bearer | Phase 5 SRLM query |
 | POST | `/api/srlm/debug` | Bearer | Phase 5 with full trace |
+
+### Phase 6 — Enhanced response fields (`/api/query` and `/api/srlm`)
+Both endpoints now return:
+- `overallConfidence` (0-10) — calibrated from intent, retrieval, and context quality
+- `confidenceLevel` — `HIGH` / `MEDIUM` / `LOW`
+- `confidenceFactors` — per-factor breakdown
+- `safetyWarnings` — list of guardrail flags (null when clean)
+- `sessionId` — pass back on follow-up queries for conversation memory

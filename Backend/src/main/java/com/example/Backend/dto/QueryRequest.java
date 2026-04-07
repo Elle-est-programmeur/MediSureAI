@@ -14,4 +14,7 @@ public class QueryRequest {
 
     /** When true, response includes the full agent execution trace. */
     private Boolean includeSteps = false;
+
+    /** Optional: session ID for conversation memory. Auto-generated if absent. */
+    private String sessionId;
 }

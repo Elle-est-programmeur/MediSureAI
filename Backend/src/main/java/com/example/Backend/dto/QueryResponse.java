@@ -18,6 +18,15 @@ public class QueryResponse {
     private String answer;
     private QueryIntent detectedIntent;
     private Double intentConfidence;
+
+    // Confidence calibration
+    private Double overallConfidence;      // 0-10 scale
+    private String confidenceLevel;        // "LOW", "MEDIUM", "HIGH"
+    private List<String> confidenceFactors;
+
+    // Safety
+    private List<String> safetyWarnings;
+
     private List<String> citations;
     /** Null unless {@code includeSteps: true} was requested. */
     private List<Map<String, Object>> executionSteps;

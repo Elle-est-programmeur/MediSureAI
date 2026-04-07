@@ -3,8 +3,13 @@ package com.example.Backend.service.agent;
 import com.example.Backend.dto.*;
 import com.example.Backend.exception.AgentException;
 import com.example.Backend.model.AgentStep;
+import com.example.Backend.model.ToolType;
+import com.example.Backend.service.confidence.ConfidenceCalibrationService;
 import com.example.Backend.service.llm.LLMService;
 import com.example.Backend.service.llm.PromptTemplateService;
+import com.example.Backend.service.memory.SessionMemoryService;
+import com.example.Backend.service.safety.GuardrailService;
+import com.example.Backend.service.tools.ToolOrchestrator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,15 +19,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
- * Central agent brain for Phase 4.
+ * Central agent brain — Phase 4 + Phase 6 production enhancements.
  *
  * Pipeline:
- *   IntentDetection → TaskPlanning → ToolExecution → LLM Reasoning → Response
- *
- * Each step's result is captured in an execution trace when the caller
- * requests {@code includeSteps: true} (debug mode).
+ *   IntentDetection → TaskPlanning → ToolOrchestration → ConfidenceCalibration
+ *   → LLM Reasoning → SafetyGuardrails → SessionMemory → Response
  */
 @Service
 @RequiredArgsConstructor
@@ -31,15 +35,15 @@ public class AgentOrchestrator {
 
     private final IntentDetectionService intentDetectionService;
     private final TaskPlanningService taskPlanningService;
-    private final ToolExecutor toolExecutor;
+    private final ToolOrchestrator toolOrchestrator;
     private final LLMService llmService;
     private final PromptTemplateService promptTemplateService;
+    private final ConfidenceCalibrationService confidenceService;
+    private final GuardrailService guardrailService;
+    private final SessionMemoryService sessionMemory;
 
     @Value("${openai.model.completion}")
     private String model;
-
-    @Value("${agent.context.max-chunks:5}")
-    private int maxChunks;
 
     public QueryResponse processQuery(QueryRequest request) {
         long start = System.currentTimeMillis();
@@ -49,6 +53,11 @@ public class AgentOrchestrator {
         try {
             log.info("Agent processing: '{}'", request.getQuery());
 
+            // ── Session ID ────────────────────────────────────────────────────
+            String sessionId = request.getSessionId() != null
+                    ? request.getSessionId()
+                    : UUID.randomUUID().toString();
+
             // ── Step 1: Intent Detection ──────────────────────────────────────
             IntentDetectionResult intentResult =
                     intentDetectionService.detectIntent(request.getQuery());
@@ -56,52 +65,75 @@ public class AgentOrchestrator {
             if (traceEnabled) trace.add(traceEntry(AgentStep.INTENT_DETECTION, intentResult));
 
             // ── Step 2: Task Planning ─────────────────────────────────────────
-            TaskPlan plan = taskPlanningService.createPlan(request.getQuery(), intentResult.getIntent());
+            TaskPlan plan = taskPlanningService.createPlan(
+                    request.getQuery(), intentResult.getIntent());
 
             if (traceEnabled) trace.add(traceEntry(AgentStep.TASK_PLANNING, plan));
 
-            // ── Step 3: Tool Execution ────────────────────────────────────────
-            String context = "";
+            // ── Step 3: Tool Orchestration ────────────────────────────────────
+            ToolContext toolContext = ToolContext.builder()
+                    .query(request.getQuery())
+                    .intent(intentResult.getIntent())
+                    .documentId(request.getDocumentId())
+                    .parameters(plan.getParameters())
+                    .sessionId(sessionId)
+                    .build();
 
-            if (plan.getSteps().contains(AgentStep.VECTOR_SEARCH)) {
-                context = toolExecutor.executeVectorSearch(
-                        request.getQuery(),
-                        plan.getParameters(),
-                        request.getDocumentId()
-                );
+            List<ToolType> toolsToExecute = determineTools(plan);
+            List<ToolResult> toolResults = toolOrchestrator.executeTools(toolContext, toolsToExecute);
+            String context = toolOrchestrator.combineToolResults(toolResults);
 
+            if (traceEnabled) {
                 int chunkCount = context.isBlank() ? 0 : context.split("---").length;
-                if (traceEnabled) trace.add(traceEntry(AgentStep.VECTOR_SEARCH,
-                        Map.of("chunksRetrieved", chunkCount, "contextLength", context.length())));
+                trace.add(traceEntry(AgentStep.VECTOR_SEARCH,
+                        Map.of("chunksRetrieved", chunkCount,
+                               "contextLength", context.length(),
+                               "toolsExecuted", toolResults.size())));
             }
 
-            // ── Step 4: LLM Reasoning ─────────────────────────────────────────
+            // ── Step 4: Confidence Calibration ────────────────────────────────
+            ConfidenceCalibrationService.ConfidenceScore confidence =
+                    confidenceService.calculateConfidence(
+                            intentResult.getConfidence(), toolResults, context.length());
+
+            // ── Step 5: LLM Reasoning ─────────────────────────────────────────
             String answer;
             if (context.isBlank()) {
                 answer = "I don't have any relevant documents to answer this question. "
                        + "Please upload your insurance policy or medical documents first, "
                        + "then try again.";
-                log.warn("No context retrieved for query — skipping LLM call");
+                log.warn("No context retrieved — skipping LLM call");
             } else {
                 String prompt = promptTemplateService.buildAnswerPrompt(
                         request.getQuery(), context, intentResult.getIntent());
-
                 answer = llmService.generateCompletion(prompt);
 
                 if (traceEnabled) trace.add(traceEntry(AgentStep.LLM_REASONING,
                         Map.of("promptLength", prompt.length(), "answerLength", answer.length())));
             }
 
+            // ── Step 6: Safety Guardrails ─────────────────────────────────────
+            GuardrailService.SafetyCheckResult safety =
+                    guardrailService.checkAnswer(answer, confidence.score());
+
+            // ── Step 7: Session Memory ────────────────────────────────────────
+            sessionMemory.saveQueryContext(sessionId, request.getQuery(), safety.safeAnswer());
+
             long elapsed = System.currentTimeMillis() - start;
-            log.info("Agent completed in {}ms [intent={}, confidence={}]",
-                    elapsed, intentResult.getIntent(), intentResult.getConfidence());
+            log.info("Agent completed in {}ms [intent={}, confidence={}/10 ({}), blocked={}]",
+                    elapsed, intentResult.getIntent(),
+                    confidence.score(), confidence.level(), safety.blocked());
 
             return QueryResponse.builder()
                     .query(request.getQuery())
-                    .answer(answer)
+                    .answer(safety.safeAnswer())
                     .detectedIntent(intentResult.getIntent())
                     .intentConfidence(intentResult.getConfidence())
-                    .citations(new ArrayList<>())  // Phase 5: extract chunk IDs from context
+                    .overallConfidence(confidence.score())
+                    .confidenceLevel(confidence.level())
+                    .confidenceFactors(confidence.factors())
+                    .safetyWarnings(safety.warnings().isEmpty() ? null : safety.warnings())
+                    .citations(new ArrayList<>())
                     .executionSteps(traceEnabled ? trace : null)
                     .processingTimeMs(elapsed)
                     .model(model)
@@ -111,6 +143,17 @@ public class AgentOrchestrator {
             log.error("Agent processing failed: {}", ex.getMessage(), ex);
             throw new AgentException("Failed to process query: " + ex.getMessage(), ex);
         }
+    }
+
+    private List<ToolType> determineTools(TaskPlan plan) {
+        List<ToolType> tools = new ArrayList<>();
+        if (plan.getSteps().contains(AgentStep.VECTOR_SEARCH)) {
+            tools.add(ToolType.VECTOR_SEARCH);
+        }
+        if (plan.getSteps().contains(AgentStep.SQL_QUERY)) {
+            tools.add(ToolType.METADATA_QUERY);
+        }
+        return tools;
     }
 
     private Map<String, Object> traceEntry(AgentStep step, Object result) {
