@@ -15,6 +15,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -32,24 +33,41 @@ public class DocumentController {
      * happens asynchronously via RabbitMQ. Returns immediately with UPLOADED status.
      */
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<DocumentUploadResponse> upload(
-            @RequestParam("file") MultipartFile file,
+    public ResponseEntity<List<DocumentUploadResponse>> uploadFiles(
+            @RequestParam("files") List<MultipartFile> files,
             @RequestParam("documentType") DocumentType documentType,
             Authentication authentication) {
 
-        if (file.isEmpty()) {
-            return ResponseEntity.badRequest()
-                    .body(DocumentUploadResponse.builder()
+        if (files == null || files.isEmpty()) {
+            return ResponseEntity.badRequest().body(List.of(
+                    DocumentUploadResponse.builder()
                             .status(com.example.Backend.model.DocumentStatus.FAILED)
-                            .message("Uploaded file is empty")
-                            .build());
+                            .message("No files were uploaded")
+                            .build()
+            ));
         }
 
         Users user = resolveUser(authentication);
-        log.info("Upload request: {} [{}] by {}", file.getOriginalFilename(), documentType, user.getUsername());
+        List<DocumentUploadResponse> responses = new ArrayList<>();
 
-        DocumentUploadResponse response = documentProcessingService.uploadDocument(file, documentType, user);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        for (MultipartFile file : files) {
+            if (!file.isEmpty()) {
+                log.info("Upload request: {} [{}] by {}", file.getOriginalFilename(), documentType, user.getUsername());
+                try {
+                    DocumentUploadResponse res = documentProcessingService.uploadDocument(file, documentType, user);
+                    responses.add(res);
+                } catch (Exception e) {
+                    log.error("Failed to enqueue document {}", file.getOriginalFilename(), e);
+                    responses.add(DocumentUploadResponse.builder()
+                            .fileName(file.getOriginalFilename())
+                            .status(com.example.Backend.model.DocumentStatus.FAILED)
+                            .message(e.getMessage())
+                            .build());
+                }
+            }
+        }
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(responses);
     }
 
     /**
@@ -84,6 +102,20 @@ public class DocumentController {
         Users user = resolveUser(authentication);
         documentProcessingService.deleteDocument(id, user);
         return ResponseEntity.ok(Map.of("message", "Document deleted successfully"));
+    }
+
+    /**
+     * Clears all documents and vectors for the current user.
+     * Used for session-based analysis where data should be forgotten on reload.
+     */
+    @DeleteMapping("/clear")
+    public ResponseEntity<Map<String, String>> clearSession(Authentication authentication) {
+        Users user = resolveUser(authentication);
+        log.info("Clear session request by user: {}", user.getUsername());
+        
+        documentProcessingService.clearUserDocuments(user);
+        
+        return ResponseEntity.ok(Map.of("message", "Session cleared successfully"));
     }
 
     private Users resolveUser(Authentication authentication) {

@@ -1,37 +1,70 @@
-import { useState } from 'react';
-import DocumentUpload from './components/DocumentUpload';
-import ChatInterface from './components/ChatInterface';
-import './App.css';
+import { Routes, Route, useLocation } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
+import Navbar from "./components/Navbar";
 
-function App() {
-  const [uploadCount, setUploadCount] = useState(0);
+import Home from "./pages/Home";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Dashboard from "./pages/Dashboard";
 
-  const handleUploadSuccess = (response) => {
-    setUploadCount(prev => prev + 1);
-  };
-
+function AnimatedPage({ children }) {
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>🏥 MediSure AI</h1>
-        <p className="tagline">RAG-Powered Document Intelligence</p>
-      </header>
-
-      <main className="app-main">
-        <div className="left-panel">
-          <DocumentUpload onUploadSuccess={handleUploadSuccess} />
-        </div>
-        
-        <div className="right-panel">
-          <ChatInterface key={uploadCount} />
-        </div>
-      </main>
-
-      <footer className="app-footer">
-        <p>Built with Spring AI, Ollama, and React</p>
-      </footer>
-    </div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      style={{ minHeight: "100vh", width: "100%" }}
+    >
+      {children}
+    </motion.div>
   );
 }
 
-export default App;
+export default function App() {
+  const location = useLocation();
+
+  return (
+    <div style={{ position: "relative" }}>
+      {/* GLOBAL NAVBAR */}
+      <Navbar />
+
+      <AnimatePresence mode="wait">
+        <Routes location={location} key={location.pathname}>
+          <Route
+            path="/"
+            element={
+              <AnimatedPage>
+                <Home />
+              </AnimatedPage>
+            }
+          />
+          <Route
+            path="/login"
+            element={
+              <AnimatedPage>
+                <Login />
+              </AnimatedPage>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <AnimatedPage>
+                <Register />
+              </AnimatedPage>
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              <AnimatedPage>
+                <Dashboard />
+              </AnimatedPage>
+            }
+          />
+        </Routes>
+      </AnimatePresence>
+    </div>
+  );
+}

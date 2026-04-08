@@ -1,7 +1,7 @@
 package com.example.Backend.service.messaging;
 
 import com.example.Backend.service.document.DocumentProcessingService;
-import com.example.Backend.service.embedding.EmbeddingGenerationService;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -15,7 +15,6 @@ import java.util.Map;
 public class DocumentMessageConsumer {
 
     private final DocumentProcessingService documentProcessingService;
-    private final EmbeddingGenerationService embeddingGenerationService;
 
     /**
      * Full pipeline triggered by a single RabbitMQ message:
@@ -33,24 +32,12 @@ public class DocumentMessageConsumer {
             documentId = ((Number) message.get("documentId")).longValue();
             log.info("Received processing request for document [id={}]", documentId);
 
-            // Phase 2: extract text + chunk into MongoDB
+            // Phase 2: extract text + chunk into MongoDB + Vectorize into PGVector
             documentProcessingService.processDocument(documentId);
-
-            // Phase 3: generate OpenAI embeddings + store in FAISS
-            try {
-                log.info("Starting embedding generation for document [id={}]", documentId);
-                embeddingGenerationService.generateEmbeddingsForDocument(documentId, false);
-                log.info("Embedding generation complete for document [id={}]", documentId);
-            } catch (Exception embEx) {
-                // Non-fatal: document is still usable; embeddings can be regenerated
-                // via POST /api/search/embeddings/generate once the API key is set.
-                log.error("Embedding generation failed for document [id={}]: {}",
-                        documentId, embEx.getMessage(), embEx);
-            }
+            log.info("Document processing and vectorization complete for document [id={}]", documentId);
 
         } catch (Exception ex) {
             log.error("Failed to process document [id={}]: {}", documentId, ex.getMessage(), ex);
-            // Document status is set to FAILED inside processDocument.
         }
     }
 }

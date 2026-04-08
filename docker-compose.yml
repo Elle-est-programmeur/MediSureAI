@@ -1,3 +1,4 @@
+
 services:
 
   pgvector:
@@ -10,7 +11,7 @@ services:
       - POSTGRES_USER=testuser
       - POSTGRES_PASSWORD=testpwd
     volumes:
-      - ./volume-data/postgres:/var/lib/postgresql/data
+      - ./Backend/volume-data/postgres:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U testuser -d vectordb"]
@@ -24,7 +25,7 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      - ./volume-data/ollama:/root/.ollama
+      - ./Backend/volume-data/ollama:/root/.ollama
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/health"]
@@ -35,7 +36,7 @@ services:
 
   medsureai-db:
     container_name: medsureai-db
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     ports:
       - "5433:5432"
     environment:
@@ -43,7 +44,7 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=Shreyas@sept12
     volumes:
-      - ./volume-data/medsureai:/var/lib/postgresql/data
+      - ./Backend/volume-data/medsureai:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d medsureai"]
@@ -53,7 +54,7 @@ services:
 
   backend:
     build:
-      context: .
+      context: ./Backend
       dockerfile: Dockerfile
     container_name: medisure-backend
     ports:
@@ -63,7 +64,45 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://medsureai-db:5432/medsureai
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: Shreyas@sept12
+      SPRING_AI_OLLAMA_BASE_URL: http://ollama:11434
+      SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL: "llama3.2:3b"
+      SPRING_AI_OLLAMA_EMBEDDING_OPTIONS_MODEL: "nomic-embed-text"
+      SPRING_AI_VECTORSTORE_PGVECTOR_INITIALIZE_SCHEMA: "true"
     depends_on:
       medsureai-db:
         condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+      target: dev
+    container_name: medisure-frontend
+    volumes:
+      - ./Frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8080/api
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:latest
+    container_name: medisureai-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./Backend/volume-data/mongo:/data/db
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: medisureai-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
     restart: unless-stopped

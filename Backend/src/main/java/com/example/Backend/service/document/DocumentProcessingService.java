@@ -16,6 +16,8 @@ import com.example.Backend.repository.DocumentRepository;
 import com.example.Backend.service.messaging.DocumentMessageProducer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -24,6 +26,8 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -37,11 +41,15 @@ public class DocumentProcessingService {
     private final TextExtractionService textExtractionService;
     private final ChunkingService chunkingService;
     private final DocumentMessageProducer messageProducer;
+    private final VectorStore vectorStore;
+    private final JdbcTemplate jdbcTemplate;
 
     private static final List<String> ALLOWED_MIME_TYPES = Arrays.asList(
             "application/pdf",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/msword"
+            "application/msword",
+            "text/plain",
+            "text/markdown"
     );
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -55,7 +63,7 @@ public class DocumentProcessingService {
         String mimeType = file.getContentType();
         if (mimeType == null || !ALLOWED_MIME_TYPES.contains(mimeType)) {
             throw new UnsupportedFileTypeException(
-                    "Unsupported file type: " + mimeType + ". Allowed: PDF, DOCX, DOC"
+                    "Unsupported file type: " + mimeType + ". Allowed: " + String.join(", ", ALLOWED_MIME_TYPES)
             );
         }
 
@@ -135,6 +143,21 @@ public class DocumentProcessingService {
                     document.getId()
             );
             documentChunkRepository.saveAll(chunks);
+
+            // Step 5.5: Ingest chunks into VectorStore (PGVector via Ollama Embeddings)
+            List<org.springframework.ai.document.Document> aiDocs = chunks.stream().map(chunk -> {
+                Map<String, Object> meta = new HashMap<>(chunk.getMetadata() != null ? chunk.getMetadata() : new HashMap<>());
+                meta.put("postgresDocumentId", chunk.getPostgresDocumentId());
+                meta.put("document_id", chunk.getPostgresDocumentId().toString());
+                meta.put("fileName", document.getOriginalFileName() != null ? document.getOriginalFileName() : document.getFileName());
+                meta.put("documentType", document.getDocumentType() != null ? document.getDocumentType().name() : "OTHER");
+                return new org.springframework.ai.document.Document(chunk.getContent(), meta);
+            }).toList();
+            
+            if (!aiDocs.isEmpty()) {
+                vectorStore.add(aiDocs);
+                log.info("Document [id={}] embedded and stored {} chunks in VectorStore", documentId, aiDocs.size());
+            }
 
             // Step 6: mark COMPLETED
             document.setStatus(DocumentStatus.COMPLETED);
@@ -218,6 +241,40 @@ public class DocumentProcessingService {
                 .processedAt(document.getProcessedAt())
                 .errorMessage(document.getErrorMessage())
                 .build();
+    }
+
+    @Transactional
+    public void clearUserDocuments(Users user) {
+        log.info("Clearing all documents and vectors for user: {}", user.getUsername());
+        
+        List<Document> userDocs = documentRepository.findByUser(user);
+        if (userDocs.isEmpty()) {
+            return;
+        }
+
+        List<String> docIds = userDocs.stream()
+                .map(d -> d.getId().toString())
+                .toList();
+
+        // 1. Clear from VectorStore (PGVector)
+        // Spring AI doesn't have a 'delete by metadata' yet, so we use native SQL
+        for (String id : docIds) {
+            jdbcTemplate.update("DELETE FROM vector_store WHERE metadata->>'document_id' = ?", id);
+        }
+        log.info("Cleared user vectors from vector_store");
+
+        // 2. Clear from MongoDB (Content and Chunks)
+        for (Document doc : userDocs) {
+            documentChunkRepository.deleteByPostgresDocumentId(doc.getId());
+            if (doc.getMongoDocumentId() != null && !doc.getMongoDocumentId().equals("pending")) {
+                documentContentRepository.deleteById(doc.getMongoDocumentId());
+            }
+        }
+        log.info("Cleared user data from MongoDB");
+
+        // 3. Clear from PostgreSQL
+        documentRepository.deleteAll(userDocs);
+        log.info("Cleared user metadata from PostgreSQL");
     }
 
     private String truncate(String message, int maxLen) {

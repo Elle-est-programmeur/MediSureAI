@@ -1,0 +1,104 @@
+/* Page Layout */
+.auth-page {
+  position: relative;
+  min-height: 100vh;
+  background: var(--bg);   
+  color: var(--text);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  font-family: system-ui, -apple-system, sans-serif;
+  transition: background 0.4s ease, color 0.4s ease;
+}
+
+/* Card */
+.auth-card {
+  position: relative;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  padding: 40px;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 400px;
+  color: var(--text);  /* ✅ dynamic */
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+}
+
+/* Title */
+.auth-title {
+  text-align: center;
+  font-size: 26px;
+  margin-bottom: 25px;
+  font-weight: 600;
+}
+
+/* Inputs */
+.auth-input {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 18px;
+  border-radius: 8px;
+  border: none;
+  outline: none;
+  font-size: 14px;
+}
+
+/* Button Container */
+.auth-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 16px; x
+  margin-top: 10px;
+}
+
+/* Buttons */
+.auth-button {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  font-size: 15px;
+  cursor: pointer;
+  background: #6366f1;
+  color: white;
+  transition: 0.3s ease;
+}
+
+.auth-button:hover {
+  background: #4f46e5;
+  transform: translateY(-2px);
+}
+
+/* Cancel Button */
+.auth-button.cancel {
+  background: #888;
+}
+
+.auth-button.cancel:hover {
+  background: #777;
+}
+
+/* Links */
+.auth-link {
+  text-align: center;
+  margin-top: 18px;
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+.auth-link:hover {
+  opacity: 1;
+}
+
+/* Particle Canvas */
+.particle-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}

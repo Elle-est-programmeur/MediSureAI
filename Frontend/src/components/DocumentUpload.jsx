@@ -1,25 +1,24 @@
 import { useState } from 'react';
-import { uploadDocument } from '../services/api';
+import { uploadDocuments } from '../services/api';
 import './DocumentUpload.css';
 
 function DocumentUpload({ onUploadSuccess }) {
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
   const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      setFile(selectedFile);
+    if (e.target.files && e.target.files.length > 0) {
+      setFiles(Array.from(e.target.files));
       setMessage('');
       setError('');
     }
   };
 
   const handleUpload = async () => {
-    if (!file) {
-      setError('Please select a file first');
+    if (!files || files.length === 0) {
+      setError('Please select at least one file first');
       return;
     }
 
@@ -28,22 +27,22 @@ function DocumentUpload({ onUploadSuccess }) {
     setError('');
 
     try {
-      const response = await uploadDocument(file);
+      const responseBatch = await uploadDocuments(files);
       
-      if (response.status === 'COMPLETED') {
-        setMessage(`✓ ${response.fileName} uploaded successfully! Created ${response.chunkCount} chunks.`);
-        setFile(null);
-        // Reset file input
+      const successCount = responseBatch.filter(r => r.status === 'UPLOADED' || r.status === 'COMPLETED').length;
+      if (successCount > 0) {
+        setMessage(`✓ ${successCount} file(s) uploaded successfully! Background processing and vectorization started.`);
+        setFiles([]);
         document.getElementById('file-input').value = '';
         
         if (onUploadSuccess) {
-          onUploadSuccess(response);
+          onUploadSuccess(responseBatch);
         }
       } else {
-        setError(`Failed to process document: ${response.message}`);
+        setError(`Failed to initiate document processing.`);
       }
     } catch (err) {
-      setError(`Error uploading file: ${err.message}`);
+      setError(`Error uploading files: ${err.message}`);
     } finally {
       setUploading(false);
     }
@@ -60,27 +59,28 @@ function DocumentUpload({ onUploadSuccess }) {
         <input
           id="file-input"
           type="file"
-          accept=".pdf,.txt,.md"
+          accept=".pdf,.txt,.md,.docx"
+          multiple
           onChange={handleFileChange}
           disabled={uploading}
           className="file-input"
         />
         
-        {file && (
+        {files.length > 0 && (
           <div className="file-info">
-            <span className="file-name">{file.name}</span>
+            <span className="file-name">{files.length} file(s) ready</span>
             <span className="file-size">
-              ({(file.size / 1024).toFixed(2)} KB)
+              ({(files.reduce((acc, f) => acc + f.size, 0) / 1024).toFixed(2)} KB total)
             </span>
           </div>
         )}
         
         <button
           onClick={handleUpload}
-          disabled={!file || uploading}
+          disabled={files.length === 0 || uploading}
           className="upload-button"
         >
-          {uploading ? '⏳ Processing...' : '⬆️ Upload'}
+          {uploading ? '⏳ Vectorizing...' : '⬆️ Upload'}
         </button>
       </div>
 
