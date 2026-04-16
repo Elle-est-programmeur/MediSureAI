@@ -6,12 +6,10 @@ import com.example.Backend.model.DocumentStatus;
 import com.example.Backend.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.document.DocumentReader;
-import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
+import org.apache.tika.Tika;
+import org.apache.tika.exception.TikaException;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -34,6 +32,7 @@ public class DocumentService {
 
     private final VectorStore vectorStore;
     private final DocumentRepository documentRepository;
+    private final Tika tika = new Tika();
 
     public DocumentUploadResponse processDocument(MultipartFile file) {
         log.info("Processing document via RAG pipeline: {}", file.getOriginalFilename());
@@ -112,9 +111,14 @@ public class DocumentService {
     }
 
     private List<org.springframework.ai.document.Document> processPdf(Path filePath) {
-        Resource resource = new FileSystemResource(filePath.toFile());
-        DocumentReader reader = new PagePdfDocumentReader(resource);
-        return reader.get();
+        try {
+            String content = tika.parseToString(filePath);
+            return List.of(new org.springframework.ai.document.Document(
+                    content, Map.of("source", filePath.getFileName().toString())
+            ));
+        } catch (IOException | TikaException ex) {
+            throw new RuntimeException("Failed to extract PDF content: " + filePath.getFileName(), ex);
+        }
     }
 
     private List<org.springframework.ai.document.Document> processText(Path filePath) throws IOException {

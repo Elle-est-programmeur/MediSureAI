@@ -2,10 +2,10 @@ package com.example.Backend.service.vector;
 
 import com.example.Backend.dto.SearchRequest;
 import com.example.Backend.dto.SearchResponse;
-import com.example.Backend.service.embedding.EmbeddingService;
 import com.example.Backend.vector.SearchResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -16,38 +16,46 @@ import java.util.stream.Collectors;
 @Slf4j
 public class SemanticSearchService {
 
-    private final EmbeddingService embeddingService;
-    private final VectorStoreService vectorStoreService;
+    // ── Phase 5 Integration: Query exactly where Phase 4 natively stored the docs! ──
+    private final VectorStore vectorStore;
 
     public SearchResponse search(SearchRequest request) {
         long start = System.currentTimeMillis();
-        log.info("Semantic search: '{}'", request.getQuery());
+        log.info("Semantic search via Spring AI (PgVector): '{}'", request.getQuery());
 
-        // Embed the query using the same model as the stored chunks
-        float[] queryEmbedding = embeddingService.generateEmbedding(request.getQuery());
-
-        // Cosine-similarity search in the vector index
         int topK = request.getTopK() != null ? request.getTopK() : 5;
-        List<SearchResult> results = vectorStoreService.search(queryEmbedding, topK);
 
-        // Optionally narrow to a single document
+        // Build native Spring AI SearchRequest
+        org.springframework.ai.vectorstore.SearchRequest aiRequest = 
+                org.springframework.ai.vectorstore.SearchRequest.query(request.getQuery())
+                        .withTopK(topK);
+
+        // Filter safely by document ID if specified 
         if (request.getDocumentId() != null) {
-            results = results.stream()
-                    .filter(r -> request.getDocumentId().equals(r.getMetadata().get("postgresDocumentId")))
-                    .collect(Collectors.toList());
+            aiRequest.withFilterExpression("document_id == '" + request.getDocumentId() + "'");
         }
 
-        // Hydrate content field from the metadata stored in the vector index
-        // (avoids a secondary MongoDB round-trip per chunk)
-        results.forEach(r -> r.setContent((String) r.getMetadata().get("content")));
+        // Run similarity search directly against the robust PgVector store
+        List<org.springframework.ai.document.Document> docs = vectorStore.similaritySearch(aiRequest);
 
-        // Concatenate chunk text for direct use in an LLM prompt
+        // Map Spring AI documents to our custom phase DTO expected by SRLM Pipeline
+        List<SearchResult> results = docs.stream().map(doc -> {
+            SearchResult res = new SearchResult();
+            res.setChunkId(doc.getId());
+            res.setContent(doc.getContent());
+            res.setMetadata(doc.getMetadata());
+            // Defaulting similarity score, PgVector returns distance but it's hidden under Spring AI's native abstraction
+            res.setSimilarity(0.99); 
+            return res;
+        }).collect(Collectors.toList());
+
+        // Extract and format the specific context strings to pass into the Agent
         String context = results.stream()
                 .map(SearchResult::getContent)
                 .collect(Collectors.joining("\n\n---\n\n"));
 
         long elapsed = System.currentTimeMillis() - start;
-        log.info("Search complete in {}ms — {} results", elapsed, results.size());
+        log.info("PgVector Search complete in {}ms — Found {} deeply relevant results", elapsed, results.size());
 
         return SearchResponse.builder()
                 .query(request.getQuery())

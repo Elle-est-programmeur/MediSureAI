@@ -2,7 +2,7 @@ package com.example.Backend.service.srlm;
 
 import com.example.Backend.dto.ReasoningCandidate;
 import com.example.Backend.dto.ReflectionResult;
-import com.example.Backend.service.llm.LLMService;
+import com.example.Backend.service.llm.CritiqueLLMService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -12,9 +12,11 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
- * Asks the LLM to critically evaluate each reasoning candidate.
+ * Asks the LLM to critically evaluate each reasoning candidate in parallel.
  * Returns structured feedback used by the scoring stage.
  */
 @Service
@@ -22,7 +24,7 @@ import java.util.List;
 @Slf4j
 public class SelfReflectionService {
 
-    private final LLMService llmService;
+    private final CritiqueLLMService llmService;
     private final ObjectMapper objectMapper;
 
     @Value("${srlm.reflection.enabled:true}")
@@ -31,24 +33,32 @@ public class SelfReflectionService {
     public List<ReflectionResult> reflectOnCandidates(
             List<ReasoningCandidate> candidates, String query, String context) {
 
-        List<ReflectionResult> results = new ArrayList<>();
-
-        for (ReasoningCandidate candidate : candidates) {
-            if (!reflectionEnabled) {
-                results.add(defaultPassReflection(candidate));
-                continue;
-            }
-            try {
-                String prompt = buildReflectionPrompt(query, context, candidate);
-                String response = llmService.generateCompletion(prompt);
-                results.add(parseReflection(candidate, response));
-            } catch (Exception e) {
-                log.warn("Reflection failed for path {}: {}", candidate.getPath(), e.getMessage());
-                results.add(defaultPassReflection(candidate));
-            }
+        if (!reflectionEnabled) {
+            return candidates.stream()
+                    .map(this::defaultPassReflection)
+                    .collect(Collectors.toList());
         }
 
-        return results;
+        log.info("Reflecting on {} candidates in parallel...", candidates.size());
+
+        // Launch all reflections simultaneously
+        List<CompletableFuture<ReflectionResult>> futures = candidates.stream()
+                .map(candidate -> CompletableFuture.supplyAsync(() -> {
+                    try {
+                        String prompt = buildReflectionPrompt(query, context, candidate);
+                        String response = llmService.generateCritique(prompt);
+                        return parseReflection(candidate, response);
+                    } catch (Exception e) {
+                        log.warn("Reflection failed for path {}: {}", candidate.getPath(), e.getMessage());
+                        return defaultPassReflection(candidate);
+                    }
+                }))
+                .collect(Collectors.toList());
+
+        // Wait for all cloud calls to complete
+        return futures.stream()
+                .map(CompletableFuture::join)
+                .collect(Collectors.toList());
     }
 
     private String buildReflectionPrompt(String query, String context, ReasoningCandidate candidate) {

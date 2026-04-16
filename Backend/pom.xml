@@ -59,9 +59,8 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.ai</groupId>
-			<artifactId>spring-ai-pdf-document-reader</artifactId>
+			<artifactId>spring-ai-openai-spring-boot-starter</artifactId>
 		</dependency>
-		<!-- Apache Tika (Text Extraction) -->
 		<dependency>
 			<groupId>org.apache.tika</groupId>
 			<artifactId>tika-core</artifactId>
@@ -72,48 +71,34 @@
 			<artifactId>tika-parsers-standard-package</artifactId>
 			<version>2.9.1</version>
 		</dependency>
-
-		<!-- MongoDB -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-mongodb</artifactId>
 		</dependency>
-
-		<!-- RabbitMQ -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-amqp</artifactId>
 		</dependency>
-
-		<!-- Apache POI (DOCX Processing) -->
 		<dependency>
 			<groupId>org.apache.poi</groupId>
 			<artifactId>poi-ooxml</artifactId>
 			<version>5.2.5</version>
 		</dependency>
-
-		<!-- Commons IO -->
 		<dependency>
 			<groupId>commons-io</groupId>
 			<artifactId>commons-io</artifactId>
 			<version>2.15.1</version>
 		</dependency>
-
-		<!-- OpenAI API Client -->
 		<dependency>
 			<groupId>com.theokanning.openai-gpt3-java</groupId>
 			<artifactId>service</artifactId>
 			<version>0.18.2</version>
 		</dependency>
-
-		<!-- Apache Commons Math (vector operations) -->
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-math3</artifactId>
 			<version>3.6.1</version>
 		</dependency>
-
-		<!-- Spring Retry (for embedding API retries) -->
 		<dependency>
 			<groupId>org.springframework.retry</groupId>
 			<artifactId>spring-retry</artifactId>
@@ -177,7 +162,6 @@
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
-
 	<repositories>
 		<repository>
 			<id>spring-milestones</id>
@@ -196,7 +180,6 @@
 			</releases>
 		</repository>
 	</repositories>
-
 	<build>
 		<plugins>
 			<plugin>
@@ -227,5 +210,4 @@
 			</plugin>
 		</plugins>
 	</build>
-
 </project>

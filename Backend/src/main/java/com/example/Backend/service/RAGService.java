@@ -2,7 +2,6 @@ package com.example.Backend.service;
 
 import com.example.Backend.dto.QuestionRequest;
 import com.example.Backend.dto.QuestionResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -18,13 +17,19 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Qualifier;
+
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class RAGService {
 
     private final VectorStore vectorStore;
     private final ChatModel chatModel;
+
+    public RAGService(VectorStore vectorStore, @Qualifier("ollamaChatModel") ChatModel chatModel) {
+        this.vectorStore = vectorStore;
+        this.chatModel = chatModel;
+    }
 
     private static final String PROMPT_TEMPLATE = """
             You are a helpful AI assistant. Answer the user's question based on the context provided below.

@@ -36,7 +36,7 @@ public class DocumentMessageConsumer {
             documentProcessingService.processDocument(documentId);
             log.info("Document processing and vectorization complete for document [id={}]", documentId);
 
-        } catch (Exception ex) {
+        } catch (Throwable ex) {
             log.error("Failed to process document [id={}]: {}", documentId, ex.getMessage(), ex);
         }
     }

@@ -34,7 +34,7 @@ export default function Navbar() {
 
   return (
     <nav
-      className={`fixed top-0 left-0 w-full h-16 flex justify-between items-center px-10 z-50 transition-all duration-300 ${
+      className={`shrink-0 w-full h-16 flex justify-between items-center px-10 z-50 transition-all duration-300 ${
         darkMode
           ? "bg-slate-900 text-white border-b border-white/10"
           : "bg-white text-gray-900 border-b border-black/10"

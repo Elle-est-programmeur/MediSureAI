@@ -167,7 +167,7 @@ public class DocumentProcessingService {
 
             log.info("Document [id={}] processed successfully → {} chunks", documentId, chunks.size());
 
-        } catch (Exception ex) {
+        } catch (Throwable ex) {
             log.error("Document [id={}] processing failed: {}", documentId, ex.getMessage(), ex);
             document.setStatus(DocumentStatus.FAILED);
             document.setErrorMessage(truncate(ex.getMessage(), 900));

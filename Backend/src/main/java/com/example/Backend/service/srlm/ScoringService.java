@@ -3,34 +3,33 @@ package com.example.Backend.service.srlm;
 import com.example.Backend.dto.ReasoningCandidate;
 import com.example.Backend.dto.ReflectionResult;
 import com.example.Backend.dto.ScoringResult;
-import com.example.Backend.service.llm.LLMService;
+import com.example.Backend.service.llm.CritiqueLLMService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
- * Scores each reasoning candidate on relevance, correctness, and completeness.
- * Incorporates reflection feedback as a penalty modifier.
+ * Advanced LLM-based scoring for reasoning candidates.
+ *
+ * Each path is evaluated on Relevance, Correctness, and Completeness.
+ * Restored to full spec: Uses OpenRouter to provide deep qualitative analysis.
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ScoringService {
 
-    private final LLMService llmService;
+    private final CritiqueLLMService llmService;
     private final ObjectMapper objectMapper;
-
-    @Value("${srlm.scoring.min-confidence:6.0}")
-    private double minConfidence;
 
     public List<ScoringResult> scoreCandidates(
             List<ReasoningCandidate> candidates,
@@ -38,93 +37,75 @@ public class ScoringService {
             String query,
             String context) {
 
+        log.info("Scoring {} reasoning candidates in parallel via LLM...", candidates.size());
+
         Map<Object, ReflectionResult> reflectionMap = reflections.stream()
                 .collect(Collectors.toMap(ReflectionResult::getPath, Function.identity()));
 
-        List<ScoringResult> results = new ArrayList<>();
+        List<CompletableFuture<ScoringResult>> futures = candidates.stream()
+                .map(candidate -> CompletableFuture.supplyAsync(() -> {
+                    try {
+                        ReflectionResult reflection = reflectionMap.get(candidate.getPath());
+                        String prompt = buildScoringPrompt(query, context, candidate, reflection);
+                        String response = llmService.generateCritique(prompt);
+                        return parseScoring(candidate, response);
+                    } catch (Exception e) {
+                        log.warn("Scoring failed for path {}: {}", candidate.getPath(), e.getMessage());
+                        return defaultScore(candidate);
+                    }
+                }))
+                .collect(Collectors.toList());
 
-        for (ReasoningCandidate candidate : candidates) {
-            try {
-                ReflectionResult reflection = reflectionMap.get(candidate.getPath());
-                String prompt = buildScoringPrompt(query, context, candidate, reflection);
-                String response = llmService.generateCompletion(prompt);
-                ScoringResult score = parseScore(candidate, response, reflection);
-                results.add(score);
-                log.debug("Scored path {} → overall={}", candidate.getPath(), score.getOverallScore());
-            } catch (Exception e) {
-                log.warn("Scoring failed for path {}: {}", candidate.getPath(), e.getMessage());
-                results.add(defaultScore(candidate));
-            }
-        }
-
-        return results;
+        return futures.stream()
+                .map(CompletableFuture::join)
+                .collect(Collectors.toList());
     }
 
     private String buildScoringPrompt(
-            String query, String context,
-            ReasoningCandidate candidate, ReflectionResult reflection) {
-
-        String reflectionSummary = reflection != null
-                ? String.format("Valid: %b, FactsCorrect: %b, Contradictions: %b. Assessment: %s",
-                        reflection.isValid(), reflection.isFactsCorrect(),
-                        reflection.isHasContradictions(), reflection.getOverallAssessment())
-                : "No reflection available";
+            String query, String context, ReasoningCandidate candidate, ReflectionResult reflection) {
+        
+        String reflectionText = reflection != null ? reflection.getOverallAssessment() : "None";
 
         return String.format("""
-                Score the following healthcare insurance answer on a scale of 1-10 for each dimension.
-
+                You are a quality auditor for a healthcare insurance AI.
+                Score the following answer on a scale of 1.0 to 10.0 across three metrics.
+                
                 QUESTION: %s
-
-                REFERENCE CONTEXT:
-                %s
-
-                ANSWER (path: %s):
-                %s
-
-                REFLECTION FEEDBACK: %s
-
-                Respond ONLY with valid JSON (no markdown):
+                CONTEXT: %s
+                ANSWER: %s
+                REFLECTION SUMMARY: %s
+                
+                METRICS:
+                1. Relevance: Did it answer the specific user question?
+                2. Correctness: Are the facts supported by the context?
+                3. Completeness: Does it cover all necessary details?
+                
+                Return ONLY valid JSON:
                 {
-                  "relevanceScore": 8.5,
-                  "correctnessScore": 7.0,
-                  "completenessScore": 6.5,
-                  "scoringReasoning": "brief explanation"
+                  "relevance": 0.0,
+                  "correctness": 0.0,
+                  "completeness": 0.0,
+                  "overall": 0.0,
+                  "reasoning": "one sentence explanation"
                 }
-                """,
-                query, context, candidate.getPath().name(), candidate.getAnswer(), reflectionSummary);
+                """, query, context, candidate.getAnswer(), reflectionText);
     }
 
-    private ScoringResult parseScore(
-            ReasoningCandidate candidate, String response, ReflectionResult reflection) {
+    private ScoringResult parseScoring(ReasoningCandidate candidate, String response) {
         try {
             String json = stripCodeFence(response);
             JsonNode node = objectMapper.readTree(json);
-
-            double relevance = node.path("relevanceScore").asDouble(5.0);
-            double correctness = node.path("correctnessScore").asDouble(5.0);
-            double completeness = node.path("completenessScore").asDouble(5.0);
-            String reasoning = node.path("scoringReasoning").asText("");
-
-            double overall = (relevance + correctness + completeness) / 3.0;
-
-            // Penalise answers flagged as invalid or having contradictions
-            if (reflection != null) {
-                if (!reflection.isValid()) overall *= 0.6;
-                else if (reflection.isHasContradictions()) overall *= 0.8;
-                else if (!reflection.isFactsCorrect()) overall *= 0.7;
-            }
-
+            
             return ScoringResult.builder()
                     .path(candidate.getPath())
-                    .relevanceScore(relevance)
-                    .correctnessScore(correctness)
-                    .completenessScore(completeness)
-                    .overallScore(Math.round(overall * 10.0) / 10.0)
-                    .scoringReasoning(reasoning)
+                    .relevanceScore(node.path("relevance").asDouble(5.0))
+                    .correctnessScore(node.path("correctness").asDouble(5.0))
+                    .completenessScore(node.path("completeness").asDouble(5.0))
+                    .overallScore(node.path("overall").asDouble(5.0))
+                    .scoringReasoning(node.path("reasoning").asText("LLM analyzed quality"))
                     .build();
-
         } catch (Exception e) {
-            log.warn("Failed to parse scoring JSON for path {}: {}", candidate.getPath(), e.getMessage());
+            log.error("Failed to parse scoring JSON: {}", response);
             return defaultScore(candidate);
         }
     }
@@ -136,7 +117,7 @@ public class ScoringService {
                 .correctnessScore(5.0)
                 .completenessScore(5.0)
                 .overallScore(5.0)
-                .scoringReasoning("Default score — LLM scoring unavailable")
+                .scoringReasoning("Fallback score due to analysis error")
                 .build();
     }
 

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Generates N independent reasoning paths over the same context.
@@ -41,22 +42,33 @@ public class MultiReasoningService {
     public List<ReasoningCandidate> generateReasoningPaths(
             String query, String context, QueryIntent intent) {
 
-        List<ReasoningCandidate> candidates = new ArrayList<>();
         int pathCount = Math.min(reasoningPaths, PATH_ORDER.length);
 
+        // Run all reasoning paths in PARALLEL to cut total time from N*latency → 1*latency
+        List<CompletableFuture<ReasoningCandidate>> futures = new ArrayList<>();
         for (int i = 0; i < pathCount; i++) {
-            ReasoningPath path = PATH_ORDER[i];
-            try {
-                String prompt = buildPathPrompt(query, context, intent, path);
-                String response = llmService.generateCompletionWithTemperature(prompt, reasoningTemperature);
-                candidates.add(parseCandidate(path, response));
-                log.debug("Generated reasoning path: {}", path);
-            } catch (Exception e) {
-                log.warn("Failed to generate reasoning path {}: {}", path, e.getMessage());
-            }
+            final ReasoningPath path = PATH_ORDER[i];
+            CompletableFuture<ReasoningCandidate> future = CompletableFuture.supplyAsync(() -> {
+                try {
+                    String prompt = buildPathPrompt(query, context, intent, path);
+                    String response = llmService.generateCompletionWithTemperature(prompt, reasoningTemperature);
+                    log.debug("Generated reasoning path: {}", path);
+                    return parseCandidate(path, response);
+                } catch (Exception e) {
+                    log.warn("Failed to generate reasoning path {}: {}", path, e.getMessage());
+                    return null;
+                }
+            });
+            futures.add(future);
         }
 
-        log.info("Generated {}/{} reasoning paths", candidates.size(), pathCount);
+        // Wait for all paths to complete and collect non-null results
+        List<ReasoningCandidate> candidates = futures.stream()
+                .map(CompletableFuture::join)
+                .filter(c -> c != null)
+                .collect(java.util.stream.Collectors.toList());
+
+        log.info("Generated {}/{} reasoning paths (parallel)", candidates.size(), pathCount);
         return candidates;
     }
 
@@ -80,21 +92,14 @@ public class MultiReasoningService {
         };
 
         return String.format("""
-                You are a healthcare insurance AI assistant using the %s reasoning approach.
-
-                REASONING APPROACH: %s
-
-                CONTEXT FROM INSURANCE DOCUMENTS:
-                %s
-
-                USER QUESTION: %s
-                DETECTED INTENT: %s
-
-                Provide your answer using the specified reasoning approach.
-                Structure your response as:
-                APPROACH: [one sentence describing your reasoning angle]
-                REASONING: [2-3 sentences explaining your chain of thought]
-                ANSWER: [clear, concise answer to the question]
+                [SYSTEM: %s | %s]
+                [CONTEXT: %s]
+                [QUERY: %s]
+                [INTENT: %s]
+                Short Format: 
+                APPROACH: 1 sentence.
+                REASONING: 2 sentences.
+                ANSWER: Concisely answer.
                 """,
                 path.name(), focusInstruction, context, query, intent.name());
     }

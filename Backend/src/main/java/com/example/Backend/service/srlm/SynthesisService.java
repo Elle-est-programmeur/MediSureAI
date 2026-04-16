@@ -3,7 +3,7 @@ package com.example.Backend.service.srlm;
 import com.example.Backend.dto.ReasoningCandidate;
 import com.example.Backend.dto.ScoringResult;
 import com.example.Backend.model.QueryIntent;
-import com.example.Backend.service.llm.LLMService;
+import com.example.Backend.service.llm.CritiqueLLMService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class SynthesisService {
 
-    private final LLMService llmService;
+    private final CritiqueLLMService llmService;
 
     @Value("${srlm.synthesis.enabled:true}")
     private boolean synthesisEnabled;
@@ -79,7 +79,7 @@ public class SynthesisService {
 
         try {
             String prompt = buildSynthesisPrompt(query, intent, topCandidates, topTwo);
-            String synthesized = llmService.generateCompletion(prompt);
+            String synthesized = llmService.generateCritique(prompt);
             String reasoning = String.format(
                     "Synthesized from %s (%.1f) and %s (%.1f)",
                     topTwo.get(0).getPath(), topTwo.get(0).getOverallScore(),

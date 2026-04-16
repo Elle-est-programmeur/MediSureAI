@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import DocumentUpload from '../components/DocumentUpload';
 import ChatInterface from '../components/ChatInterface';
 import { clearDocuments } from '../services/api';
-import '../App.css';
+
 
 function Dashboard() {
   const [uploadCount, setUploadCount] = useState(0);
@@ -25,38 +25,16 @@ function Dashboard() {
   };
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <div className="header-content">
-          <h1>🏥 MediSure AI</h1>
-          <p className="tagline">Intelligent Document Analysis</p>
-        </div>
-        <div className="header-actions">
-          <button
-            className="logout-btn"
-            onClick={() => {
-              localStorage.removeItem("user");
-              window.location.href = "/login";
-            }}
-          >
-            Logout
-          </button>
-        </div>
-      </header>
-
-      <main className="app-main">
-        <div className="left-panel">
+    <div className="flex-1 w-full h-full min-h-0 flex flex-col overflow-hidden bg-[radial-gradient(circle_at_top_left,_#1e293b,_#0f172a)]">
+      <main className="mx-auto flex flex-1 w-full h-full min-h-0 max-w-[1600px] gap-6 overflow-hidden p-6">
+        <div className="flex shrink-0 w-[380px] h-full min-h-0 overflow-hidden rounded-[20px] border border-white/10 bg-slate-800/50 p-px shadow-[0_8px_32px_rgba(0,0,0,0.3)] backdrop-blur-[12px]">
           <DocumentUpload onUploadSuccess={handleUploadSuccess} />
         </div>
-        
-        <div className="right-panel">
+
+        <div className="flex flex-col flex-1 h-full min-w-0 min-h-0 overflow-hidden rounded-[20px] border border-white/10 bg-slate-800/50 p-px shadow-[0_8px_32px_rgba(0,0,0,0.3)] backdrop-blur-[12px]">
           <ChatInterface key={uploadCount} />
         </div>
       </main>
-
-      <footer className="app-footer">
-        <p>Built with Spring AI, Ollama, and React</p>
-      </footer>
     </div>
   );
 }

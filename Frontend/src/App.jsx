@@ -14,7 +14,7 @@ function AnimatedPage({ children }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      style={{ minHeight: "100vh", width: "100%" }}
+      className="flex-1 w-full min-h-0 flex flex-col relative"
     >
       {children}
     </motion.div>
@@ -25,7 +25,7 @@ export default function App() {
   const location = useLocation();
 
   return (
-    <div style={{ position: "relative" }}>
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-[#0f172a]">
       {/* GLOBAL NAVBAR */}
       <Navbar />
 

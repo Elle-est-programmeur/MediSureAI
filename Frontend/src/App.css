@@ -25,10 +25,26 @@ body {
 }
 
 .app {
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
   background: radial-gradient(circle at top left, #1e293b, #0f172a);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.dashboard-layout {
+  position: fixed;
+  top: 64px; /* account for global fixed navbar */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: auto;
+  margin-top: 0;
+}
+
+.dashboard-main {
+  height: 100%;
 }
 
 .app-header {
@@ -41,6 +57,8 @@ body {
   align-items: center;
   flex-shrink: 0;
   z-index: 100;
+  position: sticky;
+  top: 0;
 }
 
 .header-content {
@@ -77,6 +95,7 @@ body {
   margin: 0 auto;
   width: 100%;
   min-height: 0; /* Important for scrollable flex children */
+  overflow: hidden;
 }
 
 .left-panel {
@@ -84,7 +103,8 @@ body {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .right-panel {
@@ -92,6 +112,7 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -102,12 +123,13 @@ body {
   color: rgba(255, 255, 255, 0.5);
   font-size: 12px;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 @media (max-width: 1024px) {
   .app-main {
     flex-direction: column;
-    overflow-y: auto;
+    overflow: hidden;
   }
   
   .left-panel {

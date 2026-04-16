@@ -24,6 +24,8 @@ services:
     image: ollama/ollama:latest
     ports:
       - "11434:11434"
+    environment:
+      - OLLAMA_NUM_PARALLEL=2
     volumes:
       - ./Backend/volume-data/ollama:/root/.ollama
     restart: unless-stopped
@@ -65,7 +67,7 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: Shreyas@sept12
       SPRING_AI_OLLAMA_BASE_URL: http://ollama:11434
-      SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL: "llama3.2:3b"
+      SPRING_AI_OLLAMA_CHAT_OPTIONS_MODEL: "llama3.2:1b"
       SPRING_AI_OLLAMA_EMBEDDING_OPTIONS_MODEL: "nomic-embed-text"
       SPRING_AI_VECTORSTORE_PGVECTOR_INITIALIZE_SCHEMA: "true"
     depends_on:

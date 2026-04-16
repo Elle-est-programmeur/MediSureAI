@@ -53,10 +53,9 @@ export const clearDocuments = async () => {
   return response.data;
 };
 
-export const askQuestion = async (question, topK = 5) => {
-  const response = await api.post('/chat/ask', {
-    question,
-    topK,
+export const askQuestion = async (question) => {
+  const response = await api.post('/srlm', {
+    query: question,
   });
 
   return response.data;
