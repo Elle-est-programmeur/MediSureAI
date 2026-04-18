@@ -18,26 +18,39 @@ import org.springframework.stereotype.Service;
 public class CritiqueLLMService {
 
     private final ChatClient chatClient;
+    private final LLMService localLlmService;
 
-    public CritiqueLLMService(@Qualifier("openAiChatModel") ChatModel chatModel) {
+    public CritiqueLLMService(@Qualifier("openAiChatModel") ChatModel chatModel, LLMService localLlmService) {
         this.chatClient = ChatClient.builder(chatModel)
                 .defaultSystem("You are a high-precision medical insurance auditor. " +
                         "Evaluate arguments based strictly on the provided context.")
                 .build();
+        this.localLlmService = localLlmService;
     }
 
     @Retryable(retryFor = Exception.class, maxAttempts = 3, backoff = @Backoff(delay = 2000, multiplier = 2))
     public String generateCritique(String prompt) {
+        long startTime = System.currentTimeMillis();
         try {
-            log.debug("Sending critique request to OpenRouter (GPT-4o-mini)...");
+            log.info("Starting cloud critique (timeout=60s)...");
             String response = chatClient.prompt()
                     .user(prompt)
                     .call()
                     .content();
+            log.info("Cloud critique succeeded in {}ms", (System.currentTimeMillis() - startTime));
             return response != null ? response : "";
-        } catch (Exception e) {
-            log.error("Cloud Critique failed: {}", e.getMessage());
-            throw new LLMException("Cloud critique failed: " + e.getMessage(), e);
+        } catch (Throwable e) {
+            log.warn("Cloud Critique/Orchestration failed after {}ms: {}. Falling back to local Ollama.", 
+                    (System.currentTimeMillis() - startTime), e.getMessage());
+            try {
+                // Fallback to local model to ensure the SRLM pipeline completes
+                String localResponse = localLlmService.generateCompletion(prompt);
+                log.info("Local fallback critique succeeded.");
+                return localResponse;
+            } catch (Exception localEx) {
+                log.error("CRITICAL: Both cloud and local critique models failed: {}", localEx.getMessage());
+                return "[Error: Analysis component failed. Detailed reasoning results unavailable.]";
+            }
         }
     }
 }

@@ -30,9 +30,11 @@ public class SemanticSearchService {
                 org.springframework.ai.vectorstore.SearchRequest.query(request.getQuery())
                         .withTopK(topK);
 
-        // Filter safely by document ID if specified 
+        // Filter safely by document ID or a raw filter expression if specified 
         if (request.getDocumentId() != null) {
             aiRequest.withFilterExpression("document_id == '" + request.getDocumentId() + "'");
+        } else if (request.getFilterExpression() != null) {
+            aiRequest.withFilterExpression(request.getFilterExpression());
         }
 
         // Run similarity search directly against the robust PgVector store

@@ -14,6 +14,7 @@ import com.example.Backend.repository.DocumentChunkRepository;
 import com.example.Backend.repository.DocumentContentRepository;
 import com.example.Backend.repository.DocumentRepository;
 import com.example.Backend.service.messaging.DocumentMessageProducer;
+import com.example.Backend.service.llm.LLMService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -41,6 +42,7 @@ public class DocumentProcessingService {
     private final TextExtractionService textExtractionService;
     private final ChunkingService chunkingService;
     private final DocumentMessageProducer messageProducer;
+    private final LLMService llmService;
     private final VectorStore vectorStore;
     private final JdbcTemplate jdbcTemplate;
 
@@ -51,10 +53,6 @@ public class DocumentProcessingService {
             "text/plain",
             "text/markdown"
     );
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // UPLOAD: persists metadata to PostgreSQL, enqueues async processing
-    // ─────────────────────────────────────────────────────────────────────────
 
     @Transactional
     public DocumentUploadResponse uploadDocument(MultipartFile file,
@@ -67,11 +65,9 @@ public class DocumentProcessingService {
             );
         }
 
-        // Persist file to disk
         String storedName = fileStorageService.storeFile(file);
         Path filePath = fileStorageService.getFilePath(storedName);
 
-        // Create PostgreSQL metadata record
         Document document = Document.builder()
                 .user(user)
                 .fileName(storedName)
@@ -88,7 +84,6 @@ public class DocumentProcessingService {
         Document saved = documentRepository.save(document);
         log.info("Document metadata saved [id={}] → enqueuing for processing", saved.getId());
 
-        // Enqueue for async Tika extraction + MongoDB storage
         messageProducer.sendForProcessing(saved.getId());
 
         return DocumentUploadResponse.builder()
@@ -102,25 +97,18 @@ public class DocumentProcessingService {
                 .build();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // PROCESS: called by RabbitMQ consumer — extract, chunk, store in MongoDB
-    // ─────────────────────────────────────────────────────────────────────────
-
     @Transactional
     public void processDocument(Long documentId) {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new DocumentProcessingException("Document not found: " + documentId));
 
         try {
-            // Step 1: mark as PROCESSING
             document.setStatus(DocumentStatus.PROCESSING);
             documentRepository.save(document);
 
-            // Step 2: extract text with Apache Tika
             Path filePath = Path.of(document.getFilePath());
             String extractedText = textExtractionService.extractText(filePath);
 
-            // Step 3: persist full text in MongoDB
             DocumentContent content = DocumentContent.builder()
                     .postgresDocumentId(document.getId())
                     .fullText(extractedText)
@@ -131,12 +119,10 @@ public class DocumentProcessingService {
 
             DocumentContent savedContent = documentContentRepository.save(content);
 
-            // Step 4: update PostgreSQL with MongoDB reference, mark CHUNKING
             document.setMongoDocumentId(savedContent.getId());
             document.setStatus(DocumentStatus.CHUNKING);
             documentRepository.save(document);
 
-            // Step 5: chunk text and store chunks in MongoDB
             List<DocumentChunk> chunks = chunkingService.chunkText(
                     extractedText,
                     savedContent.getId(),
@@ -144,7 +130,49 @@ public class DocumentProcessingService {
             );
             documentChunkRepository.saveAll(chunks);
 
-            // Step 5.5: Ingest chunks into VectorStore (PGVector via Ollama Embeddings)
+            log.info("Starting date extraction for document [{}] using LLM", documentId);
+            // Step 5.1: Extract Event Date from first chunk if not already set
+            if (document.getEventDate() == null && !chunks.isEmpty()) {
+                try {
+                    String snippet = chunks.get(0).getContent();
+                    log.debug("Using text snippet for date extraction: {}", 
+                            snippet.substring(0, Math.min(50, snippet.length())) + "...");
+                            
+                    String datePrompt = String.format("""
+                            Extract the primary medical/service date from this document snippet. 
+                            Return ONLY the date in YYYY-MM-DD format. 
+                            If no date is found, return 'NOT_FOUND'.
+                            
+                            Snippet:
+                            %s
+                            """, snippet.substring(0, Math.min(1000, snippet.length())));
+                    
+                    String dateStr = llmService.generateCompletion(datePrompt);
+                    if (dateStr == null) {
+                        log.warn("LLM returned null for date extraction on document {}", documentId);
+                    } else {
+                        dateStr = dateStr.trim();
+                        log.info("LLM date extraction raw result: [{}]", dateStr);
+                        
+                        // Robust extraction: find YYYY-MM-DD anywhere in the response
+                        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
+                        java.util.regex.Matcher matcher = pattern.matcher(dateStr);
+                        
+                        if (matcher.find()) {
+                            String cleanDate = matcher.group();
+                            log.info("Successfully parsed event date: {}", cleanDate);
+                            document.setEventDate(java.time.LocalDate.parse(cleanDate).atStartOfDay());
+                        } else {
+                            log.warn("No valid YYYY-MM-DD date found in LLM response for document {}", documentId);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to extract date from document {}: {}", documentId, e.getMessage());
+                }
+            } else {
+                log.info("Skipping date extraction: eventDate already set or no chunks available.");
+            }
+
             List<org.springframework.ai.document.Document> aiDocs = chunks.stream().map(chunk -> {
                 Map<String, Object> meta = new HashMap<>(chunk.getMetadata() != null ? chunk.getMetadata() : new HashMap<>());
                 meta.put("postgresDocumentId", chunk.getPostgresDocumentId());
@@ -159,7 +187,6 @@ public class DocumentProcessingService {
                 log.info("Document [id={}] embedded and stored {} chunks in VectorStore", documentId, aiDocs.size());
             }
 
-            // Step 6: mark COMPLETED
             document.setStatus(DocumentStatus.COMPLETED);
             document.setChunkCount(chunks.size());
             document.setProcessedAt(LocalDateTime.now());
@@ -176,10 +203,6 @@ public class DocumentProcessingService {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // QUERIES
-    // ─────────────────────────────────────────────────────────────────────────
-
     public List<DocumentMetadataDTO> getUserDocuments(Users user) {
         return documentRepository.findByUser(user)
                 .stream()
@@ -195,10 +218,6 @@ public class DocumentProcessingService {
         return toDTO(document);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // DELETE
-    // ─────────────────────────────────────────────────────────────────────────
-
     @Transactional
     public void deleteDocument(Long documentId, Users user) {
         Document document = documentRepository.findById(documentId)
@@ -206,7 +225,6 @@ public class DocumentProcessingService {
 
         assertOwnership(document, user);
 
-        // Clean up disk, MongoDB chunks, MongoDB content, then PostgreSQL row
         fileStorageService.deleteFile(document.getFileName());
         documentChunkRepository.deleteByPostgresDocumentId(documentId);
         documentContentRepository.deleteByPostgresDocumentId(documentId);
@@ -214,10 +232,6 @@ public class DocumentProcessingService {
 
         log.info("Document [id={}] deleted by user [{}]", documentId, user.getUsername());
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // HELPERS
-    // ─────────────────────────────────────────────────────────────────────────
 
     private void assertOwnership(Document document, Users user) {
         if (document.getUser() == null || !document.getUser().getId().equals(user.getId())) {
@@ -239,6 +253,7 @@ public class DocumentProcessingService {
                 .chunkCount(document.getChunkCount())
                 .uploadedAt(document.getUploadedAt())
                 .processedAt(document.getProcessedAt())
+                .eventDate(document.getEventDate())
                 .errorMessage(document.getErrorMessage())
                 .build();
     }
@@ -256,14 +271,11 @@ public class DocumentProcessingService {
                 .map(d -> d.getId().toString())
                 .toList();
 
-        // 1. Clear from VectorStore (PGVector)
-        // Spring AI doesn't have a 'delete by metadata' yet, so we use native SQL
         for (String id : docIds) {
             jdbcTemplate.update("DELETE FROM vector_store WHERE metadata->>'document_id' = ?", id);
         }
         log.info("Cleared user vectors from vector_store");
 
-        // 2. Clear from MongoDB (Content and Chunks)
         for (Document doc : userDocs) {
             documentChunkRepository.deleteByPostgresDocumentId(doc.getId());
             if (doc.getMongoDocumentId() != null && !doc.getMongoDocumentId().equals("pending")) {
@@ -272,7 +284,6 @@ public class DocumentProcessingService {
         }
         log.info("Cleared user data from MongoDB");
 
-        // 3. Clear from PostgreSQL
         documentRepository.deleteAll(userDocs);
         log.info("Cleared user metadata from PostgreSQL");
     }

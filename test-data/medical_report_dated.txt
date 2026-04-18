@@ -1,0 +1,8 @@
+PATIENT SERVICE RECORD
+DATE: 2024-05-15
+PATIENT: John Doe
+PROCEDURE: Routine Consultation and Follow-up
+NOTES: Patient reports improvement in knee pain. Previous surgery on Jan 10, 2024 was successful. 
+RECOVERY: Expected to return to full activity in 2 weeks.
+CLINIC: MediSure General Hospital
+LINKED_DOC: procedure_recommendation.txt

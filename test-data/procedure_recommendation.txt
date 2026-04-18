@@ -1,0 +1,8 @@
+DOCTOR'S RECOMMENDATION
+DATE: 2024-06-01
+PATIENT: John Doe
+DIAGNOSIS: Severe Osteoarthritis, Right Knee.
+RECOMMENDED PROCEDURE: Advanced Knee Replacement (AKR-9A).
+JUSTIFICATION: Conventional physical therapy and medication have failed to provide relief after 8 weeks of treatment.
+URGENCY: Medium.
+SIGNATURE: Dr. Healthington

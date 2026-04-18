@@ -22,5 +22,6 @@ public class DocumentMetadataDTO {
     private Integer chunkCount;
     private LocalDateTime uploadedAt;
     private LocalDateTime processedAt;
+    private LocalDateTime eventDate;
     private String errorMessage;
 }

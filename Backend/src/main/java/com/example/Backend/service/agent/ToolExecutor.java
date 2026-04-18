@@ -34,6 +34,10 @@ public class ToolExecutor {
         request.setQuery(query);
         request.setTopK(topK);
         request.setDocumentId(documentId);
+        
+        if (parameters.containsKey("documentType")) {
+            request.setFilterExpression("documentType == '" + parameters.get("documentType") + "'");
+        }
 
         log.info("Executing vector search [topK={}, documentId={}]", topK, documentId);
 

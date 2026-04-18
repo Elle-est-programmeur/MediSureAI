@@ -4,6 +4,7 @@ import './DocumentUpload.css';
 
 function DocumentUpload({ onUploadSuccess }) {
   const [files, setFiles] = useState([]);
+  const [documentType, setDocumentType] = useState('MEDICAL_REPORT');
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -27,7 +28,7 @@ function DocumentUpload({ onUploadSuccess }) {
     setError('');
 
     try {
-      const responseBatch = await uploadDocuments(files);
+      const responseBatch = await uploadDocuments(files, documentType);
       
       const successCount = responseBatch.filter(r => r.status === 'UPLOADED' || r.status === 'COMPLETED').length;
       if (successCount > 0) {
@@ -56,6 +57,20 @@ function DocumentUpload({ onUploadSuccess }) {
       </p>
       
       <div className="upload-container">
+        <div className="type-selector mb-4">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Document Type</label>
+          <select 
+            value={documentType}
+            onChange={(e) => setDocumentType(e.target.value)}
+            className="w-full bg-slate-900 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          >
+            <option value="MEDICAL_REPORT">Medical Report / Lab Result</option>
+            <option value="INSURANCE_POLICY">Insurance Policy / Benefits</option>
+            <option value="PRESCRIPTION">Prescription</option>
+            <option value="OTHER">Other / General</option>
+          </select>
+        </div>
+
         <input
           id="file-input"
           type="file"

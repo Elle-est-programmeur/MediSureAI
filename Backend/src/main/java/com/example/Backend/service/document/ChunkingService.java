@@ -66,6 +66,10 @@ public class ChunkingService {
             }
 
             // Slide forward with overlap so adjacent chunks share context
+            if (endPos >= textLength) {
+                break; // Last chunk reached
+            }
+            
             int advance = endPos - currentPos - overlap;
             currentPos += Math.max(advance, 1);
         }

@@ -12,8 +12,9 @@ function ChatInterface() {
     chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight;
   }, [chatHistory, loading]);
 
+
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     
     if (!question.trim()) {
       return;
@@ -59,7 +60,7 @@ function ChatInterface() {
       <div className="shrink-0 mb-6">
         <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">💬 Ask Questions</h2>
         <p className="text-sm text-slate-300">
-          Ask questions about your uploaded documents
+          Ask questions or run specialized <span className="text-blue-400 font-semibold italic">Coverage Gap Analysis</span>
         </p>
       </div>
 
@@ -76,6 +77,7 @@ function ChatInterface() {
               <div className="flex flex-col items-center gap-2">
                 <span className="text-3xl">👋</span>
                 <p>Upload some documents and start asking questions!</p>
+                <p className="text-xs text-slate-500 mt-2">Try mentioning a procedure and clicking 'Analyze'</p>
               </div>
             </div>
           ) : (
@@ -98,8 +100,8 @@ function ChatInterface() {
                       {(message.confidenceScore || message.detectedIntent) && (
                         <div className="mt-3 pt-3 border-t border-slate-700/50 text-xs text-slate-400 flex flex-wrap gap-2 items-center">
                           {message.detectedIntent && (
-                            <span className="bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-md border border-blue-500/20 font-medium">
-                              🎯 Intent: {message.detectedIntent.replace(/_/g, ' ')}
+                            <span className="bg-indigo-500/10 text-indigo-400 px-2.5 py-1 rounded-md border border-indigo-500/20 font-medium">
+                              🔍 Analyzer: {message.detectedIntent.replace(/_/g, ' ')}
                             </span>
                           )}
                           {message.confidenceScore && (
@@ -130,12 +132,20 @@ function ChatInterface() {
           
           {loading && (
             <div className="mr-auto flex flex-col items-start max-w-[80%]">
-              <span className="text-xs font-semibold text-white/70 mb-1.5 px-1">AI Assistant</span>
-              <div className="bg-slate-800 border border-white/5 px-5 py-4 rounded-2xl rounded-tl-sm shadow-md flex items-center justify-center">
+              <span className="text-xs font-semibold text-white/70 mb-1.5 px-1 font-mono uppercase tracking-widest animate-pulse">
+                SRLM Engine Processing
+              </span>
+              <div className="bg-slate-800 border border-blue-500/20 px-5 py-4 rounded-2xl rounded-tl-sm shadow-[0_0_15px_rgba(59,130,246,0.1)] flex flex-col gap-3">
                 <div className="flex gap-1.5 items-center">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <div className="h-1.5 w-32 bg-slate-700/50 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500/50 animate-[shimmer_2s_infinite]" style={{ width: '40%' }}></div>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-medium">Synthesizing multiple reasoning paths...</span>
                 </div>
               </div>
             </div>
@@ -145,13 +155,14 @@ function ChatInterface() {
         {/* Input Box - Fixed at Bottom */}
         <form 
           onSubmit={handleSubmit} 
-          className="shrink-0 p-4 bg-slate-800/80 border-t border-white/10 backdrop-blur-md flex gap-3"
+          className="shrink-0 p-4 bg-slate-800/80 border-t border-white/10 backdrop-blur-md flex flex-col gap-3"
         >
+          <div className="flex gap-3">
           <input
             type="text"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Ask a question about your documents..."
+            placeholder="Ask a question or name a procedure..."
             disabled={loading}
             className="flex-1 bg-slate-900 border border-slate-700 text-white placeholder-slate-400 px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed min-w-0"
           />
@@ -166,6 +177,8 @@ function ChatInterface() {
               '➤'
             )}
           </button>
+          </div>
+          
         </form>
       </div>
     </div>

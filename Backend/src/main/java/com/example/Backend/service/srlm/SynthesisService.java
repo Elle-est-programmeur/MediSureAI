@@ -55,6 +55,11 @@ public class SynthesisService {
                 .collect(Collectors.toMap(c -> c.getPath(), Function.identity()));
 
         ReasoningCandidate bestCandidate = candidateMap.get(best.getPath());
+        
+        if (bestCandidate == null) {
+            log.warn("Best candidate (path={}) missing from candidate map! Returning generic error.", best.getPath());
+            return new SynthesisOutput("Multiple reasoning paths were attempted but a final valid answer could not be synthesized. Please try a more specific question.", "Primary candidate missing");
+        }
 
         if (!synthesisEnabled || best.getOverallScore() < minConfidence) {
             log.info("Synthesis skipped — using best candidate: {} (score={})",

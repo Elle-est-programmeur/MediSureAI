@@ -59,6 +59,8 @@ public class Document {
     private LocalDateTime uploadedAt;
 
     private LocalDateTime processedAt;
+    
+    private LocalDateTime eventDate;
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;

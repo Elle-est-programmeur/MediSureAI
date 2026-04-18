@@ -67,9 +67,9 @@ public class SRLMOrchestrator {
 
             // ── Step 2: Vector Search ─────────────────────────────────────────
             String context = toolExecutor.executeVectorSearch(
-                    request.getQuery(), Map.of(), request.getDocumentId());
+                    request.getQuery(), Map.of("topK", 10), request.getDocumentId());
 
-            if (context.isBlank()) {
+            if (context.trim().length() < 50) { // If very little context found
                 return noContextResponse(request.getQuery(), intent,
                         System.currentTimeMillis() - start);
             }

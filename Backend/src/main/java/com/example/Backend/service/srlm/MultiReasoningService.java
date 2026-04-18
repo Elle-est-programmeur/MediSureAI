@@ -92,14 +92,28 @@ public class MultiReasoningService {
         };
 
         return String.format("""
-                [SYSTEM: %s | %s]
-                [CONTEXT: %s]
-                [QUERY: %s]
-                [INTENT: %s]
-                Short Format: 
+                [SYSTEM: PATIENT CASE ANALYZER | %s]
+                You are a Senior Healthcare Reasoning Model. Your goal is to analyze the gap between medical records and insurance terms.
+                
+                CRITICAL INSTRUCTIONS:
+                1. Differentiate between SECTIONS (e.g., Section 4 Pharmacy vs Section 7 Surgery). 
+                2. If the query is about SURGERY, do NOT use "Tier 3" or co-pay logic from the PHARMACY section.
+                3. QUANTITATIVE COMPARISON: If a policy requires 'X weeks' of therapy, and medical records show 'Y weeks', you MUST explicitly calculate if Y is greater than or equal to X.
+                4. FORMULARY VS SURGERY: Do not confuse drug names with procedure names.
+                5. NO HALLUCinations: Only use information from the provided context.
+                
+                [FOCUS: %s]
+                
+                [CONTEXT]:
+                %s
+                
+                [USER QUERY]: %s
+                [QUERY INTENT]: %s
+                
+                Desired Output Format:
                 APPROACH: 1 sentence.
-                REASONING: 2 sentences.
-                ANSWER: Concisely answer.
+                REASONING: Explain the exact numbers found (e.g., "Policy requires 6 wks; Records show 8 wks"). 
+                ANSWER: State "Requirement Met" or "Coverage Gap Found" followed by a concise explanation.
                 """,
                 path.name(), focusInstruction, context, query, intent.name());
     }

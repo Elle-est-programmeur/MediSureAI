@@ -17,4 +17,7 @@ public class SearchRequest {
 
     /** Optional: restrict search to chunks belonging to this document. */
     private Long documentId;
+
+    /** Optional: Raw filter expression (e.g. "documentType == 'INSURANCE_POLICY'") */
+    private String filterExpression;
 }

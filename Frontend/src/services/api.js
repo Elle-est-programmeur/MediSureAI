@@ -34,10 +34,10 @@ api.interceptors.response.use(
   }
 );
 
-export const uploadDocuments = async (files) => {
+export const uploadDocuments = async (files, documentType = 'MEDICAL_REPORT') => {
   const formData = new FormData();
   Array.from(files).forEach((f) => formData.append('files', f));
-  formData.append('documentType', 'INSURANCE_POLICY');
+  formData.append('documentType', documentType);
 
   const response = await api.post(`/documents/upload`, formData, {
     headers: {
@@ -68,6 +68,19 @@ export const getDocuments = async () => {
 
 export const getCompletedDocuments = async () => {
   const response = await api.get('/documents/completed');
+  return response.data;
+};
+
+// Patient Portal Features
+export const getTimeline = async () => {
+  const response = await api.get('/patient/timeline');
+  return response.data;
+};
+
+export const searchFormulary = async (drug) => {
+  const response = await api.get('/patient/formulary-search', {
+    params: { drug }
+  });
   return response.data;
 };
 

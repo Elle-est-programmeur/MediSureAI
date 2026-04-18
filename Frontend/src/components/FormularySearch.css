@@ -1,0 +1,123 @@
+.formulary-search {
+    position: relative;
+    width: 100%;
+}
+
+.search-box {
+    display: flex;
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 4px;
+    transition: all 0.3s ease;
+}
+
+.search-box:focus-within {
+    border-color: rgba(96, 165, 250, 0.5);
+    box-shadow: 0 0 15px rgba(96, 165, 250, 0.1);
+}
+
+.search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 8px 12px;
+    color: white;
+    font-size: 0.875rem;
+    outline: none;
+}
+
+.search-input::placeholder {
+    color: #64748b;
+}
+
+.search-button {
+    background: #3b82f6;
+    border: none;
+    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.search-button:hover:not(:disabled) {
+    background: #2563eb;
+    transform: scale(1.05);
+}
+
+.search-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.search-result-card {
+    position: absolute;
+    top: calc(100% + 12px);
+    left: 0;
+    right: 0;
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+}
+
+.result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.pill {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    background: rgba(96, 165, 250, 0.1);
+    color: #60a5fa;
+    padding: 2px 8px;
+    border-radius: 20px;
+    border: 1px solid rgba(96, 165, 250, 0.2);
+}
+
+.close-btn {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    font-size: 1.25rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.result-body {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.result-text {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: #cbd5e1;
+    white-space: pre-wrap;
+}
+
+.animate-in {
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from { 
+        opacity: 0; 
+        transform: translateY(10px); 
+    }
+    to { 
+        opacity: 1; 
+        transform: translateY(0); 
+    }
+}
