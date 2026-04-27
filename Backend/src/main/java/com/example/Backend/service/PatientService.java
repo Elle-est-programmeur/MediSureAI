@@ -1,18 +1,28 @@
 package com.example.Backend.service;
 
 import com.example.Backend.dto.*;
+import com.example.Backend.model.Billing;
 import com.example.Backend.model.Document;
 import com.example.Backend.model.DocumentType;
+import com.example.Backend.model.Drug;
+import com.example.Backend.model.MedicalRecord;
+import com.example.Backend.model.Patient;
 import com.example.Backend.model.QueryIntent;
 import com.example.Backend.model.Users;
+import com.example.Backend.repository.BillingRepository;
 import com.example.Backend.repository.DocumentRepository;
+import com.example.Backend.repository.MedicalRecordRepository;
+import com.example.Backend.repository.PatientRepository;
+import com.example.Backend.repository.UserCredRepo;
 import com.example.Backend.service.llm.LLMService;
 import com.example.Backend.service.srlm.MultiReasoningService;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
@@ -28,6 +38,10 @@ public class PatientService {
     private final DocumentRepository documentRepository;
     private final LLMService llmService;
     private final MultiReasoningService multiReasoningService;
+    private final PatientRepository patientRepository;
+    private final MedicalRecordRepository medicalRecordRepository;
+    private final BillingRepository billingRepository;
+    private final UserCredRepo userCredRepo;
 
     /**
      * Feature 2: Health Timeline
@@ -80,6 +94,104 @@ public class PatientService {
         return SRLMResponse.builder()
                 .query("Drug search: " + drugName)
                 .finalAnswer(answer)
+                .build();
+    }
+
+    // ── Profile ───────────────────────────────────────────────────────────────
+
+    @Transactional
+    public PatientProfileResponse createOrUpdateProfile(Long userId, PatientProfileRequest request) {
+        Users user = userCredRepo.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found: " + userId));
+
+        Patient patient = patientRepository.findByUserId(userId)
+                .orElseGet(() -> Patient.builder().user(user).build());
+
+        patient.setName(request.getName());
+        patient.setAge(request.getAge());
+        patient.setGender(request.getGender());
+
+        Patient saved = patientRepository.save(patient);
+        return toPatientResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public PatientProfileResponse getProfile(Long userId) {
+        Patient patient = patientRepository.findByUserId(userId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Patient profile not found for user " + userId));
+        return toPatientResponse(patient);
+    }
+
+    // ── Records & billing (read-only patient view) ────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<MedicalRecordResponse> getMyRecords(Long userId) {
+        Patient patient = patientRepository.findByUserId(userId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Patient profile not found for user " + userId));
+        return medicalRecordRepository.findByPatientIdOrderByCreatedAtDesc(patient.getId())
+                .stream()
+                .map(this::toRecordResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<BillingResponse> getMyBilling(Long userId) {
+        Patient patient = patientRepository.findByUserId(userId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Patient profile not found for user " + userId));
+        return billingRepository.findByPatientIdOrderByCreatedAtDesc(patient.getId())
+                .stream()
+                .map(this::toBillingResponse)
+                .toList();
+    }
+
+    // ── Mappers ───────────────────────────────────────────────────────────────
+
+    private PatientProfileResponse toPatientResponse(Patient p) {
+        Users user = p.getUser();
+        return PatientProfileResponse.builder()
+                .id(p.getId())
+                .name(p.getName())
+                .age(p.getAge())
+                .gender(p.getGender())
+                .username(user != null ? user.getUsername() : null)
+                .email(user != null ? user.getEmail() : null)
+                .build();
+    }
+
+    private MedicalRecordResponse toRecordResponse(MedicalRecord record) {
+        var doctor = record.getDoctor();
+        List<DrugDTO> drugs = record.getDrugs() == null ? List.of()
+                : record.getDrugs().stream().map(this::toDrugDTO).toList();
+        return MedicalRecordResponse.builder()
+                .id(record.getId())
+                .diagnosis(record.getDiagnosis())
+                .treatmentPlan(record.getTreatmentPlan())
+                .doctorName(doctor != null ? doctor.getName() : null)
+                .doctorSpecialization(doctor != null ? doctor.getSpecialization() : null)
+                .drugs(drugs)
+                .createdAt(record.getCreatedAt())
+                .build();
+    }
+
+    private BillingResponse toBillingResponse(Billing b) {
+        return BillingResponse.builder()
+                .id(b.getId())
+                .totalCost(b.getTotalCost())
+                .description(b.getDescription())
+                .createdAt(b.getCreatedAt())
+                .recordId(b.getRecord() != null ? b.getRecord().getId() : null)
+                .build();
+    }
+
+    private DrugDTO toDrugDTO(Drug d) {
+        return DrugDTO.builder()
+                .id(d.getId())
+                .name(d.getName())
+                .dosage(d.getDosage())
+                .purpose(d.getPurpose())
                 .build();
     }
 

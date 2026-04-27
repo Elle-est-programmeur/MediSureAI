@@ -3,6 +3,7 @@ package com.example.Backend.service.agent;
 import com.example.Backend.dto.*;
 import com.example.Backend.exception.AgentException;
 import com.example.Backend.model.AgentStep;
+import com.example.Backend.model.QueryIntent;
 import com.example.Backend.model.ToolType;
 import com.example.Backend.service.confidence.ConfidenceCalibrationService;
 import com.example.Backend.service.llm.LLMService;
@@ -77,13 +78,16 @@ public class AgentOrchestrator {
                     .documentId(request.getDocumentId())
                     .parameters(plan.getParameters())
                     .sessionId(sessionId)
+                    .patientUserId(request.getPatientUserId())
                     .build();
 
-            List<ToolType> toolsToExecute = determineTools(plan);
+            List<ToolType> toolsToExecute = determineTools(plan, intentResult.getIntent());
             List<ToolResult> toolResults = toolOrchestrator.executeTools(toolContext, toolsToExecute);
             String context = toolOrchestrator.combineToolResults(toolResults);
 
+
             if (traceEnabled) {
+
                 int chunkCount = context.isBlank() ? 0 : context.split("---").length;
                 trace.add(traceEntry(AgentStep.VECTOR_SEARCH,
                         Map.of("chunksRetrieved", chunkCount,
@@ -145,13 +149,29 @@ public class AgentOrchestrator {
         }
     }
 
-    private List<ToolType> determineTools(TaskPlan plan) {
+    /**
+     * Intent-driven tool selection. PATIENT_DATA is added when the query needs
+     * personal clinical/billing context; VECTOR_SEARCH is added when the query
+     * needs document grounding. Falls back to plan-derived tools for intents
+     * with no explicit rule (GENERAL_INFO, UNKNOWN, CLAIM_STATUS, …).
+     */
+    private List<ToolType> determineTools(TaskPlan plan, QueryIntent intent) {
         List<ToolType> tools = new ArrayList<>();
-        if (plan.getSteps().contains(AgentStep.VECTOR_SEARCH)) {
-            tools.add(ToolType.VECTOR_SEARCH);
-        }
-        if (plan.getSteps().contains(AgentStep.SQL_QUERY)) {
-            tools.add(ToolType.METADATA_QUERY);
+        switch (intent) {
+            case BILLING_INQUIRY, COVERAGE_QUESTION -> {
+                tools.add(ToolType.PATIENT_DATA);
+                tools.add(ToolType.VECTOR_SEARCH);
+            }
+            case MEDICAL_INTERPRETATION -> tools.add(ToolType.PATIENT_DATA);
+            case POLICY_DETAILS -> tools.add(ToolType.VECTOR_SEARCH);
+            default -> {
+                if (plan.getSteps().contains(AgentStep.VECTOR_SEARCH)) {
+                    tools.add(ToolType.VECTOR_SEARCH);
+                }
+                if (plan.getSteps().contains(AgentStep.SQL_QUERY)) {
+                    tools.add(ToolType.METADATA_QUERY);
+                }
+            }
         }
         return tools;
     }

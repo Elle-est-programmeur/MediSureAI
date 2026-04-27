@@ -17,4 +17,7 @@ public class QueryRequest {
 
     /** Optional: session ID for conversation memory. Auto-generated if absent. */
     private String sessionId;
+
+    /** Authenticated user's id — set server-side, not by clients. */
+    private Long patientUserId;
 }

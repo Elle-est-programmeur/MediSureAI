@@ -18,4 +18,6 @@ public class ToolContext {
     private Long documentId;
     private Map<String, Object> parameters;
     private String sessionId;
+    /** Authenticated user's id (Users.id). Used by tools that need per-user data. */
+    private Long patientUserId;
 }
