@@ -30,6 +30,7 @@ public class PatientController {
      * Feature 2: Health Timeline
      */
     @GetMapping("/timeline")
+    @PreAuthorize("hasRole('PATIENT')")
     public ResponseEntity<List<DocumentMetadataDTO>> getTimeline(Authentication authentication) {
         Users user = resolveUser(authentication);
         return ResponseEntity.ok(patientService.getTimeline(user));
@@ -39,6 +40,7 @@ public class PatientController {
      * Feature 4: Smart Formulary Search
      */
     @GetMapping("/formulary-search")
+    @PreAuthorize("hasRole('PATIENT')")
     public ResponseEntity<SRLMResponse> searchFormulary(
             @RequestParam String drug,
             Authentication authentication) {
