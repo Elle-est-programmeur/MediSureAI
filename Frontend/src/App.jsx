@@ -2,6 +2,7 @@ import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "./context/AuthContext";
 import Navbar from "./components/Navbar";
+import ChatThinkingBadge from "./components/ChatThinkingBadge";
 import LoadingSpinner from "./components/ui/LoadingSpinner";
 
 import Home from "./pages/Home";
@@ -109,6 +110,7 @@ export default function App() {
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-[#0f172a]">
       {/* GLOBAL NAVBAR */}
       <Navbar />
+      <ChatThinkingBadge />
 
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>

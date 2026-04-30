@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useToast } from "../../context/ToastContext";
-import { patientAPI } from "../../services/api";
+import { useChat } from "../../context/ChatContext";
 import LoadingSpinner from "../../components/ui/LoadingSpinner";
 
 const QUICK_PROMPTS = [
@@ -22,15 +21,12 @@ function formatAIText(text) {
 }
 
 export default function PatientChat() {
-  const { addToast } = useToast();
   const [searchParams] = useSearchParams();
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
 
-  const [sessionId] = useState(() => crypto.randomUUID());
-  const [messages, setMessages] = useState([]);
+  const { messages, isTyping, sessionId, sendMessage } = useChat();
   const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Pre-fill from URL params
@@ -38,7 +34,7 @@ export default function PatientChat() {
     const context = searchParams.get("context");
     const prefill = searchParams.get("prefill");
     if (context?.startsWith("record_")) {
-      setInput("Tell me about my medical record and treatment details");
+      setInput("Explain my treatment plan in plain English");
     } else if (prefill) {
       setInput(decodeURIComponent(prefill));
     }
@@ -57,40 +53,17 @@ export default function PatientChat() {
     }
   }, [input]);
 
-  async function sendMessage(text) {
+  async function handleSend(text) {
     const query = (text || input).trim();
     if (!query) return;
-
-    const userMsg = { role: "user", content: query, id: Date.now() };
-    setMessages((prev) => [...prev, userMsg]);
     setInput("");
-    setIsTyping(true);
-
-    try {
-      const res = await patientAPI.chat(query, sessionId);
-      const aiMsg = {
-        role: "ai",
-        content: res.response || res.answer || res.message || JSON.stringify(res),
-        confidence: res.confidenceScore || res.confidence,
-        intent: res.detectedIntent || res.intent,
-        id: Date.now() + 1,
-      };
-      setMessages((prev) => [...prev, aiMsg]);
-    } catch (err) {
-      addToast("Failed to get AI response", "error");
-      setMessages((prev) => [
-        ...prev,
-        { role: "ai", content: "I'm sorry, I couldn't process that request. Please try again.", id: Date.now() + 1 },
-      ]);
-    } finally {
-      setIsTyping(false);
-    }
+    sendMessage(query);
   }
 
   function handleKeyDown(e) {
     if (e.key === "Enter" && e.ctrlKey) {
       e.preventDefault();
-      sendMessage();
+      handleSend();
     }
   }
 
@@ -120,7 +93,7 @@ export default function PatientChat() {
                 {QUICK_PROMPTS.map((prompt, i) => (
                   <button
                     key={i}
-                    onClick={() => sendMessage(prompt)}
+                    onClick={() => handleSend(prompt)}
                     className="w-full text-left px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 text-sm hover:bg-white/10 hover:border-cyan-500/20 hover:text-white transition-all"
                   >
                     {prompt}
@@ -173,7 +146,7 @@ export default function PatientChat() {
                 {QUICK_PROMPTS.map((prompt, i) => (
                   <button
                     key={i}
-                    onClick={() => sendMessage(prompt)}
+                    onClick={() => handleSend(prompt)}
                     className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-slate-300 text-xs hover:bg-white/10 transition-colors"
                   >
                     {prompt}
@@ -207,16 +180,36 @@ export default function PatientChat() {
                 )}
 
                 {/* AI meta badges */}
-                {msg.role === "ai" && (msg.confidence || msg.intent) && (
-                  <div className="flex gap-2 mt-2 pt-2 border-t border-white/5">
-                    {msg.confidence && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-                        Confidence: {Math.round(msg.confidence * 100) || msg.confidence}%
-                      </span>
-                    )}
+                {msg.role === "ai" && !msg.error && (msg.confidence != null || msg.intent) && (
+                  <div className="flex flex-wrap gap-2 mt-2 pt-2 border-t border-white/5 items-center">
+                    {msg.confidence != null && (() => {
+                      // backend returns 0-10 scale via overallConfidence
+                      const score = msg.confidence;
+                      const pct = Math.round((score / 10) * 100);
+                      const level = msg.confidenceLevel || (score >= 8 ? "HIGH" : score >= 5 ? "MEDIUM" : "LOW");
+                      const cls =
+                        level === "HIGH"
+                          ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                          : level === "MEDIUM"
+                          ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
+                          : "bg-rose-500/10 border-rose-500/20 text-rose-400";
+                      return (
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full border ${cls}`}
+                          title={`Score: ${score.toFixed(1)}/10`}
+                        >
+                          {level} confidence · {pct}%
+                        </span>
+                      );
+                    })()}
                     {msg.intent && (
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400">
                         {msg.intent}
+                      </span>
+                    )}
+                    {msg.processingTimeMs != null && (
+                      <span className="text-[10px] text-slate-500">
+                        {(msg.processingTimeMs / 1000).toFixed(1)}s
                       </span>
                     )}
                   </div>
@@ -257,7 +250,7 @@ export default function PatientChat() {
               className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-3 text-white text-sm placeholder-slate-500 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition resize-none"
             />
             <button
-              onClick={() => sendMessage()}
+              onClick={() => handleSend()}
               disabled={isTyping || !input.trim()}
               className="self-end px-4 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold hover:scale-105 transition-transform shadow-lg shadow-cyan-500/25 disabled:opacity-50 disabled:hover:scale-100"
             >

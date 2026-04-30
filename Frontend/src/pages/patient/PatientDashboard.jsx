@@ -28,11 +28,13 @@ export default function PatientDashboard() {
 
   const [records, setRecords] = useState([]);
   const [billing, setBilling] = useState([]);
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatResponse, setChatResponse] = useState(null);
   const [chatLoading, setChatLoading] = useState(false);
+  const [mrnCopied, setMrnCopied] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -40,17 +42,26 @@ export default function PatientDashboard() {
 
   async function fetchData() {
     try {
-      const [recordsData, billingData] = await Promise.allSettled([
+      const [recordsData, billingData, profileData] = await Promise.allSettled([
         patientAPI.getRecords(),
         patientAPI.getBilling(),
+        patientAPI.getProfile(),
       ]);
       setRecords(recordsData.status === "fulfilled" ? (Array.isArray(recordsData.value) ? recordsData.value : []) : []);
       setBilling(billingData.status === "fulfilled" ? (Array.isArray(billingData.value) ? billingData.value : []) : []);
+      setProfile(profileData.status === "fulfilled" ? profileData.value : null);
     } catch {
       addToast("Failed to load dashboard data", "error");
     } finally {
       setLoading(false);
     }
+  }
+
+  function copyMRN() {
+    if (!profile?.medicalRecordNumber) return;
+    navigator.clipboard.writeText(profile.medicalRecordNumber);
+    setMrnCopied(true);
+    setTimeout(() => setMrnCopied(false), 1500);
   }
 
   async function handleQuickChat(e) {
@@ -158,6 +169,23 @@ export default function PatientDashboard() {
                 Welcome back, {user?.username}
               </h1>
               <p className="text-slate-400 text-sm">Your health overview at a glance</p>
+
+              {/* Medical Record Number — give this to your doctor */}
+              {profile?.medicalRecordNumber && (
+                <button
+                  onClick={copyMRN}
+                  className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition-colors group"
+                  title="Click to copy"
+                >
+                  <span className="text-[10px] uppercase tracking-wider text-slate-400">MRN</span>
+                  <span className="text-sm font-mono tracking-wider text-cyan-400 font-semibold">
+                    {profile.medicalRecordNumber}
+                  </span>
+                  <span className="text-xs text-slate-500 group-hover:text-cyan-400 transition-colors">
+                    {mrnCopied ? "✓ Copied" : "📋"}
+                  </span>
+                </button>
+              )}
             </div>
             {/* Decorative health score ring */}
             <div className="relative w-20 h-20 shrink-0">

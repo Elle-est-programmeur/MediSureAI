@@ -126,6 +126,11 @@ export default function DoctorPatients() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-white font-semibold text-sm truncate">{p.name || p.username || "Unknown"}</h3>
+                    {p.medicalRecordNumber && (
+                      <div className="text-[10px] font-mono tracking-wider text-cyan-400 mt-0.5">
+                        {p.medicalRecordNumber}
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       {p.age && (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-slate-300">{p.age} yrs</span>

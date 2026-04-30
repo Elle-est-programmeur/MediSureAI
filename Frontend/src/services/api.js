@@ -131,6 +131,11 @@ export const doctorAPI = {
     return response.data;
   },
 
+  lookupByMRN: async (mrn) => {
+    const response = await api.get('/doctor/patients/lookup', { params: { mrn } });
+    return response.data;
+  },
+
   createRecord: async (data) => {
     const response = await api.post('/doctor/records', data);
     return response.data;

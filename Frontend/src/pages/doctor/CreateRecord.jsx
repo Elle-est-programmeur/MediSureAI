@@ -14,10 +14,13 @@ export default function CreateRecord() {
   const [submitting, setSubmitting] = useState(false);
   const [patientSearch, setPatientSearch] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
+  const [mrnInput, setMrnInput] = useState("");
+  const [mrnLooking, setMrnLooking] = useState(false);
 
   const [form, setForm] = useState({
     patientUserId: "",
     patientName: "",
+    patientMRN: "",
     diagnosis: "",
     treatmentPlan: "",
     drugs: [{ name: "", dosage: "", purpose: "" }],
@@ -41,11 +44,30 @@ export default function CreateRecord() {
   function selectPatient(patient) {
     setForm((prev) => ({
       ...prev,
-      patientUserId: patient.id || patient.userId,
+      patientUserId: patient.userId || patient.id,
       patientName: patient.name || patient.username || "",
+      patientMRN: patient.medicalRecordNumber || "",
     }));
     setPatientSearch(patient.name || patient.username || "");
     setShowDropdown(false);
+  }
+
+  async function lookupByMRN() {
+    const mrn = mrnInput.trim();
+    if (!mrn) {
+      addToast("Enter an MRN to look up", "warning");
+      return;
+    }
+    setMrnLooking(true);
+    try {
+      const patient = await doctorAPI.lookupByMRN(mrn);
+      selectPatient(patient);
+      addToast(`Found: ${patient.name || patient.username}`, "success");
+    } catch (err) {
+      addToast(err.response?.data?.message || "No patient found with that MRN", "error");
+    } finally {
+      setMrnLooking(false);
+    }
   }
 
   function updateDrug(index, field, value) {
@@ -112,48 +134,93 @@ export default function CreateRecord() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* ── Left: Form ── */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Patient selector */}
-            <div className="relative">
-              <label className="block text-xs font-semibold tracking-[0.2em] uppercase text-cyan-400 mb-2" style={{ fontFamily: "Orbitron, sans-serif" }}>
-                Patient
+            {/* Patient — by MRN (primary) or search existing */}
+            <div className="space-y-3">
+              <label className="block text-xs font-semibold tracking-[0.2em] uppercase text-cyan-400" style={{ fontFamily: "Orbitron, sans-serif" }}>
+                Patient (by MRN)
               </label>
-              {patientsLoading ? (
-                <LoadingSpinner size="sm" />
-              ) : (
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={patientSearch}
-                    onChange={(e) => { setPatientSearch(e.target.value); setShowDropdown(true); }}
-                    onFocus={() => setShowDropdown(true)}
-                    placeholder="Search patient..."
-                    className={inputClass}
-                  />
-                  <AnimatePresence>
-                    {showDropdown && filteredPatients.length > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -5 }}
-                        className="absolute z-20 top-full left-0 right-0 mt-1 bg-slate-800 border border-white/10 rounded-xl shadow-2xl max-h-48 overflow-y-auto"
-                      >
-                        {filteredPatients.map((p, i) => (
-                          <div
-                            key={p.id || i}
-                            onClick={() => selectPatient(p)}
-                            className="px-4 py-3 hover:bg-white/5 cursor-pointer text-sm text-white flex items-center gap-2 border-b border-white/5 last:border-0"
-                          >
-                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-[10px] text-white font-bold">
-                              {(p.name || p.username || "?")[0].toUpperCase()}
-                            </div>
-                            <span>{p.name || p.username}</span>
-                            {p.age && <span className="text-slate-400 text-xs ml-auto">{p.age} yrs</span>}
-                          </div>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={mrnInput}
+                  onChange={(e) => setMrnInput(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); lookupByMRN(); } }}
+                  placeholder="MRN-XXXXXXXX"
+                  className={inputClass + " font-mono tracking-wider"}
+                />
+                <button
+                  type="button"
+                  onClick={lookupByMRN}
+                  disabled={mrnLooking}
+                  className="shrink-0 px-4 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-sm font-medium hover:bg-cyan-500/20 transition-colors disabled:opacity-50"
+                >
+                  {mrnLooking ? <LoadingSpinner size="sm" /> : "Look up"}
+                </button>
+              </div>
+
+              {form.patientUserId && (
+                <div className="p-3 rounded-xl bg-cyan-500/5 border border-cyan-500/20 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-xs text-white font-bold">
+                    {(form.patientName || "?")[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-white font-medium truncate">{form.patientName}</div>
+                    <div className="text-[10px] text-cyan-400 font-mono tracking-wider">{form.patientMRN}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setForm((p) => ({ ...p, patientUserId: "", patientName: "", patientMRN: "" })); setMrnInput(""); setPatientSearch(""); }}
+                    className="text-slate-400 hover:text-white text-lg"
+                  >×</button>
                 </div>
+              )}
+
+              {/* Existing-patients search (fallback for repeat visits) */}
+              {!patientsLoading && patients.length > 0 && (
+                <details className="group">
+                  <summary className="text-xs text-slate-400 cursor-pointer hover:text-cyan-400 transition-colors select-none">
+                    Or search existing patients ({patients.length})
+                  </summary>
+                  <div className="relative mt-2">
+                    <input
+                      type="text"
+                      value={patientSearch}
+                      onChange={(e) => { setPatientSearch(e.target.value); setShowDropdown(true); }}
+                      onFocus={() => setShowDropdown(true)}
+                      placeholder="Search by name..."
+                      className={inputClass}
+                    />
+                    <AnimatePresence>
+                      {showDropdown && filteredPatients.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -5 }}
+                          className="absolute z-20 top-full left-0 right-0 mt-1 bg-slate-800 border border-white/10 rounded-xl shadow-2xl max-h-48 overflow-y-auto"
+                        >
+                          {filteredPatients.map((p, i) => (
+                            <div
+                              key={p.id || i}
+                              onClick={() => selectPatient(p)}
+                              className="px-4 py-3 hover:bg-white/5 cursor-pointer text-sm text-white flex items-center gap-2 border-b border-white/5 last:border-0"
+                            >
+                              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-[10px] text-white font-bold">
+                                {(p.name || p.username || "?")[0].toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="truncate">{p.name || p.username}</div>
+                                {p.medicalRecordNumber && (
+                                  <div className="text-[10px] text-cyan-400 font-mono">{p.medicalRecordNumber}</div>
+                                )}
+                              </div>
+                              {p.age && <span className="text-slate-400 text-xs ml-2">{p.age} yrs</span>}
+                            </div>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </details>
               )}
             </div>
 

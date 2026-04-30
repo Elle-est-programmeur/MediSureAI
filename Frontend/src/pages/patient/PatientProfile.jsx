@@ -114,6 +114,16 @@ export default function PatientProfile() {
                 {user?.role || "PATIENT"}
               </span>
 
+              {/* Medical Record Number */}
+              {profile?.medicalRecordNumber && (
+                <div className="mt-3 w-full px-3 py-2 rounded-lg bg-slate-800/60 border border-cyan-500/20">
+                  <div className="text-[9px] uppercase tracking-[0.2em] text-slate-400 mb-0.5">Medical Record No.</div>
+                  <div className="text-sm font-mono tracking-wider text-cyan-400 font-semibold">
+                    {profile.medicalRecordNumber}
+                  </div>
+                </div>
+              )}
+
               {/* Email */}
               <p className="mt-3 text-sm text-slate-400">
                 {user?.email || profile?.email || "—"}
