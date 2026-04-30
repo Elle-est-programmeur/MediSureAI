@@ -115,50 +115,65 @@ public class PatientService {
         return toPatientResponse(saved);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public PatientProfileResponse getProfile(Long userId) {
-        Patient patient = patientRepository.findByUserId(userId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Patient profile not found for user " + userId));
+        Patient patient = getOrCreatePatient(userId);
         return toPatientResponse(patient);
     }
 
     // ── Records & billing (read-only patient view) ────────────────────────────
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<MedicalRecordResponse> getMyRecords(Long userId) {
-        Patient patient = patientRepository.findByUserId(userId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Patient profile not found for user " + userId));
+        Patient patient = getOrCreatePatient(userId);
         return medicalRecordRepository.findByPatientIdOrderByCreatedAtDesc(patient.getId())
                 .stream()
                 .map(this::toRecordResponse)
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<BillingResponse> getMyBilling(Long userId) {
-        Patient patient = patientRepository.findByUserId(userId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Patient profile not found for user " + userId));
+        Patient patient = getOrCreatePatient(userId);
         return billingRepository.findByPatientIdOrderByCreatedAtDesc(patient.getId())
                 .stream()
                 .map(this::toBillingResponse)
                 .toList();
     }
 
+    /** Find the Patient row for this user, or create a stub one (with auto-assigned MRN). */
+    private Patient getOrCreatePatient(Long userId) {
+        return patientRepository.findByUserId(userId)
+                .orElseGet(() -> {
+                    Users user = userCredRepo.findById(userId)
+                            .orElseThrow(() -> new EntityNotFoundException("User not found: " + userId));
+                    return patientRepository.save(Patient.builder().user(user).build());
+                });
+    }
+
     // ── Mappers ───────────────────────────────────────────────────────────────
 
     private PatientProfileResponse toPatientResponse(Patient p) {
+        ensureMrn(p);
         Users user = p.getUser();
         return PatientProfileResponse.builder()
                 .id(p.getId())
+                .userId(user != null ? user.getId() : null)
+                .medicalRecordNumber(p.getMedicalRecordNumber())
                 .name(p.getName())
                 .age(p.getAge())
                 .gender(p.getGender())
                 .username(user != null ? user.getUsername() : null)
                 .email(user != null ? user.getEmail() : null)
                 .build();
+    }
+
+    /** Backfill MRN for patients created before the column existed. */
+    private void ensureMrn(Patient p) {
+        if (p.getMedicalRecordNumber() == null || p.getMedicalRecordNumber().isBlank()) {
+            p.assignMrnIfMissing();
+            patientRepository.save(p);
+        }
     }
 
     private MedicalRecordResponse toRecordResponse(MedicalRecord record) {

@@ -25,6 +25,9 @@ public class Patient {
     @JoinColumn(name = "user_id", unique = true, nullable = false)
     private Users user;
 
+    @Column(name = "medical_record_number", unique = true, length = 16)
+    private String medicalRecordNumber;
+
     private String name;
 
     private Integer age;
@@ -38,4 +41,12 @@ public class Patient {
     @OneToMany(mappedBy = "patient", fetch = FetchType.LAZY)
     @Builder.Default
     private List<Billing> billingHistory = new ArrayList<>();
+
+    @PrePersist
+    public void assignMrnIfMissing() {
+        if (medicalRecordNumber == null || medicalRecordNumber.isBlank()) {
+            medicalRecordNumber = "MRN-" + java.util.UUID.randomUUID()
+                    .toString().replace("-", "").substring(0, 8).toUpperCase();
+        }
+    }
 }

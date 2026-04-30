@@ -10,6 +10,7 @@ import com.example.Backend.service.llm.LLMService;
 import com.example.Backend.service.llm.PromptTemplateService;
 import com.example.Backend.service.memory.SessionMemoryService;
 import com.example.Backend.service.safety.GuardrailService;
+import com.example.Backend.service.srlm.SRLMOrchestrator;
 import com.example.Backend.service.tools.ToolOrchestrator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +43,7 @@ public class AgentOrchestrator {
     private final ConfidenceCalibrationService confidenceService;
     private final GuardrailService guardrailService;
     private final SessionMemoryService sessionMemory;
+    private final SRLMOrchestrator srlmOrchestrator;
 
     @Value("${openai.model.completion}")
     private String model;
@@ -64,6 +66,11 @@ public class AgentOrchestrator {
                     intentDetectionService.detectIntent(request.getQuery());
 
             if (traceEnabled) trace.add(traceEntry(AgentStep.INTENT_DETECTION, intentResult));
+
+            // ── Branch: high-stakes patient-data intents go through SRLM ──────
+            if (isSrlmIntent(intentResult.getIntent())) {
+                return runSrlmTreatmentPath(request, intentResult, sessionId, start);
+            }
 
             // ── Step 2: Task Planning ─────────────────────────────────────────
             TaskPlan plan = taskPlanningService.createPlan(
@@ -155,6 +162,61 @@ public class AgentOrchestrator {
      * needs document grounding. Falls back to plan-derived tools for intents
      * with no explicit rule (GENERAL_INFO, UNKNOWN, CLAIM_STATUS, …).
      */
+    /** Intents whose source of truth is the patient's own record — route via SRLM. */
+    private boolean isSrlmIntent(QueryIntent intent) {
+        return intent == QueryIntent.TREATMENT_EXPLANATION
+                || intent == QueryIntent.MEDICAL_INTERPRETATION;
+    }
+
+    /**
+     * SRLM path: pull patient data, run multi-path reasoning + reflection + synthesis,
+     * then convert the SRLMResponse to a QueryResponse so the frontend shape stays stable.
+     */
+    private QueryResponse runSrlmTreatmentPath(
+            QueryRequest request, IntentDetectionResult intentResult, String sessionId, long start) {
+
+        QueryIntent intent = intentResult.getIntent();
+        log.info("Routing intent={} through SRLM (treatment path)", intent);
+
+        // Pull patient data only — no vector search noise
+        ToolContext toolContext = ToolContext.builder()
+                .query(request.getQuery())
+                .intent(intent)
+                .sessionId(sessionId)
+                .patientUserId(request.getPatientUserId())
+                .build();
+
+        List<ToolResult> toolResults =
+                toolOrchestrator.executeTools(toolContext, List.of(ToolType.PATIENT_DATA));
+        String patientContext = toolOrchestrator.combineToolResults(toolResults);
+
+        // SRLM call (parallel reasoning + reflection + synthesis)
+        com.example.Backend.dto.SRLMResponse srlm =
+                srlmOrchestrator.processTreatmentQuery(request, patientContext, intent);
+
+        long elapsed = System.currentTimeMillis() - start;
+
+        // Map score (0-10) → confidence level for the UI
+        double score = srlm.getConfidenceScore();
+        String level = score >= 8.0 ? "HIGH" : score >= 5.0 ? "MEDIUM" : "LOW";
+
+        return QueryResponse.builder()
+                .query(request.getQuery())
+                .answer(srlm.getFinalAnswer())
+                .detectedIntent(intent)
+                .intentConfidence(intentResult.getConfidence())
+                .overallConfidence(score)
+                .confidenceLevel(level)
+                .confidenceFactors(java.util.List.of(
+                        "SRLM multi-path reasoning",
+                        "selected: " + (srlm.getSelectedPath() != null ? srlm.getSelectedPath().name() : "n/a"),
+                        srlm.getSynthesisReasoning() != null ? srlm.getSynthesisReasoning() : ""))
+                .citations(new ArrayList<>())
+                .processingTimeMs(elapsed)
+                .model(model)
+                .build();
+    }
+
     private List<ToolType> determineTools(TaskPlan plan, QueryIntent intent) {
         List<ToolType> tools = new ArrayList<>();
         switch (intent) {

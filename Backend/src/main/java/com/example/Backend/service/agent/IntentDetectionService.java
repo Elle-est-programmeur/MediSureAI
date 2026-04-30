@@ -54,10 +54,20 @@ public class IntentDetectionService {
                 .collect(Collectors.joining(", "));
 
         return String.format("""
-                Categorize the user's healthcare insurance query into exactly ONE of these intents: [%s].
-                
+                Categorize the user's healthcare query into exactly ONE of these intents: [%s].
+
+                Intent guide:
+                - TREATMENT_EXPLANATION: user asks to explain / summarize / clarify their OWN treatment plan,
+                  prescribed drugs, dosing, what they should do next, or what their doctor told them.
+                  Examples: "explain my treatment plan", "what are my prescribed medicines for",
+                  "what should I do for my diagnosis", "summarize my treatment".
+                - MEDICAL_INTERPRETATION: user asks what a generic medical term/diagnosis means
+                  (not necessarily theirs). Example: "what is hypertension".
+                - COVERAGE_QUESTION / POLICY_DETAILS / CLAIM_STATUS / BILLING_INQUIRY: insurance topics.
+                - GENERAL_INFO: general healthcare questions not specific to the patient's records.
+
                 USER QUERY: "%s"
-                
+
                 Return ONLY valid JSON:
                 {
                   "intent": "INTENT_NAME",

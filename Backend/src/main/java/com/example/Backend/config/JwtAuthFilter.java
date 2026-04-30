@@ -38,7 +38,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String username = null;
 
         try {
-            // Extract token from Bearer header
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 token = authHeader.substring(7);
                 username = jwtService.extractUsername(token);
@@ -47,7 +46,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             log.error("JWT token extraction failed: {}", e.getMessage());
         }
 
-        // Validate token and set authentication
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             UserDetails userDetails = applicationContext
                     .getBean(UserCredService.class)

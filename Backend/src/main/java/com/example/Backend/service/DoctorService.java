@@ -62,10 +62,19 @@ public class DoctorService {
         return toDoctorResponse(saved);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Doctor getProfile(Long userId) {
+        return getOrCreateDoctor(userId);
+    }
+
+    /** Find the Doctor row for this user, or create a stub one. */
+    private Doctor getOrCreateDoctor(Long userId) {
         return doctorRepository.findByUserId(userId)
-                .orElseThrow(() -> new EntityNotFoundException("Doctor profile not found for user " + userId));
+                .orElseGet(() -> {
+                    Users user = userCredRepo.findById(userId)
+                            .orElseThrow(() -> new EntityNotFoundException("User not found: " + userId));
+                    return doctorRepository.save(Doctor.builder().user(user).build());
+                });
     }
 
     public DoctorProfileResponse toDoctorResponse(Doctor doctor) {
@@ -84,8 +93,7 @@ public class DoctorService {
 
     @Transactional
     public MedicalRecordResponse createMedicalRecord(Long doctorUserId, MedicalRecordRequest request) {
-        Doctor doctor = doctorRepository.findByUserId(doctorUserId)
-                .orElseThrow(() -> new EntityNotFoundException("Doctor profile not found for user " + doctorUserId));
+        Doctor doctor = getOrCreateDoctor(doctorUserId);
 
         Patient patient = patientRepository.findByUserId(request.getPatientUserId())
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -162,10 +170,9 @@ public class DoctorService {
 
     // ── Patients seen by this doctor ──────────────────────────────────────────
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<PatientProfileResponse> getMyPatients(Long doctorUserId) {
-        Doctor doctor = doctorRepository.findByUserId(doctorUserId)
-                .orElseThrow(() -> new EntityNotFoundException("Doctor profile not found for user " + doctorUserId));
+        Doctor doctor = getOrCreateDoctor(doctorUserId);
 
         return medicalRecordRepository.findByDoctorId(doctor.getId()).stream()
                 .map(MedicalRecord::getPatient)
@@ -246,14 +253,29 @@ public class DoctorService {
     }
 
     private PatientProfileResponse toPatientResponse(Patient p) {
+        if (p.getMedicalRecordNumber() == null || p.getMedicalRecordNumber().isBlank()) {
+            p.assignMrnIfMissing();
+            patientRepository.save(p);
+        }
         Users user = p.getUser();
         return PatientProfileResponse.builder()
                 .id(p.getId())
+                .userId(user != null ? user.getId() : null)
+                .medicalRecordNumber(p.getMedicalRecordNumber())
                 .name(p.getName())
                 .age(p.getAge())
                 .gender(p.getGender())
                 .username(user != null ? user.getUsername() : null)
                 .email(user != null ? user.getEmail() : null)
                 .build();
+    }
+
+    /** Doctor looks up a patient by MRN to start treating them. */
+    @Transactional
+    public PatientProfileResponse lookupPatientByMrn(String mrn) {
+        Patient patient = patientRepository.findByMedicalRecordNumber(mrn.trim())
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "No patient found with MRN: " + mrn));
+        return toPatientResponse(patient);
     }
 }

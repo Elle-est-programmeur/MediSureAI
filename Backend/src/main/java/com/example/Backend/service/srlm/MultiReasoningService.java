@@ -39,6 +39,89 @@ public class MultiReasoningService {
             ReasoningPath.PATIENT_BENEFIT
     };
 
+    private static final ReasoningPath[] TREATMENT_PATH_ORDER = {
+            ReasoningPath.TREATMENT_PLAIN,
+            ReasoningPath.TREATMENT_DRUGS,
+            ReasoningPath.TREATMENT_NEXT_STEPS
+    };
+
+    /**
+     * Patient-data-focused reasoning paths for TREATMENT_EXPLANATION /
+     * MEDICAL_INTERPRETATION queries. Same parallel infrastructure, different prompts.
+     */
+    public List<ReasoningCandidate> generateTreatmentReasoningPaths(
+            String query, String patientContext, QueryIntent intent) {
+
+        int pathCount = Math.min(reasoningPaths, TREATMENT_PATH_ORDER.length);
+
+        List<CompletableFuture<ReasoningCandidate>> futures = new ArrayList<>();
+        for (int i = 0; i < pathCount; i++) {
+            final ReasoningPath path = TREATMENT_PATH_ORDER[i];
+            CompletableFuture<ReasoningCandidate> future = CompletableFuture.supplyAsync(() -> {
+                try {
+                    String prompt = buildTreatmentPathPrompt(query, patientContext, intent, path);
+                    String response = llmService.generateCompletionWithTemperature(prompt, reasoningTemperature);
+                    log.debug("Generated treatment reasoning path: {}", path);
+                    return parseCandidate(path, response);
+                } catch (Exception e) {
+                    log.warn("Failed to generate treatment path {}: {}", path, e.getMessage());
+                    return null;
+                }
+            });
+            futures.add(future);
+        }
+
+        List<ReasoningCandidate> candidates = futures.stream()
+                .map(CompletableFuture::join)
+                .filter(c -> c != null)
+                .collect(java.util.stream.Collectors.toList());
+
+        log.info("Generated {}/{} treatment paths (parallel)", candidates.size(), pathCount);
+        return candidates;
+    }
+
+    private String buildTreatmentPathPrompt(String query, String patientContext, QueryIntent intent, ReasoningPath path) {
+        String focusInstruction = switch (path) {
+            case TREATMENT_PLAIN ->
+                    "Restate the patient's diagnosis and treatment plan in plain, layperson English. " +
+                    "Avoid jargon. Be concise and reassuring.";
+            case TREATMENT_DRUGS ->
+                    "Focus on the prescribed drugs: what each one is for, the dosage given, " +
+                    "and how they relate to the diagnosis. Do NOT recommend new drugs or change dosages.";
+            case TREATMENT_NEXT_STEPS ->
+                    "Focus on what the patient should do next based on the recorded plan: " +
+                    "follow-up timing, lifestyle, when to seek help. Do NOT invent steps not in the record.";
+            default -> "Restate the plan accurately from the record.";
+        };
+
+        return String.format("""
+                [SYSTEM: PATIENT TREATMENT EXPLAINER]
+                You are explaining a patient's OWN clinical record back to them.
+
+                STRICT RULES:
+                1. Use ONLY the data in the PATIENT CONTEXT below. If a fact (drug, dose, follow-up date,
+                   diagnosis) is not in the context, do NOT mention it. Never invent specifics.
+                2. If the patient context has no records, say so plainly and stop.
+                3. Do not give new medical advice. Only restate / explain what is recorded.
+                4. Speak directly to the patient ("you", "your") in a calm, clear tone.
+                5. No insurance/policy/coverage talk unless the patient asked about it.
+
+                [FOCUS]: %s
+
+                [PATIENT CONTEXT]:
+                %s
+
+                [USER QUESTION]: %s
+                [INTENT]: %s
+
+                Output format:
+                APPROACH: 1 sentence describing your angle.
+                REASONING: Cite the exact diagnosis / drug / treatment text from context that you used.
+                ANSWER: 3-6 sentences in plain English, addressed to the patient.
+                """,
+                focusInstruction, patientContext, query, intent.name());
+    }
+
     public List<ReasoningCandidate> generateReasoningPaths(
             String query, String context, QueryIntent intent) {
 

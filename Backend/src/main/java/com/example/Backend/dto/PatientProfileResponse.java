@@ -11,6 +11,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class PatientProfileResponse {
     private Long id;
+    private Long userId;
+    private String medicalRecordNumber;
     private String name;
     private Integer age;
     private String gender;

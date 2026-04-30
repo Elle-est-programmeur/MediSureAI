@@ -148,6 +148,85 @@ public class SRLMOrchestrator {
         }
     }
 
+    /**
+     * SRLM pipeline that uses a CALLER-PROVIDED context (e.g. PatientDataTool output)
+     * instead of vector search. Used for TREATMENT_EXPLANATION / MEDICAL_INTERPRETATION
+     * where the source of truth is the patient's own record, not policy docs.
+     */
+    public SRLMResponse processTreatmentQuery(QueryRequest request, String patientContext, QueryIntent intent) {
+        long start = System.currentTimeMillis();
+        String sessionId = request.getSessionId() != null ? request.getSessionId() : UUID.randomUUID().toString();
+
+        if (patientContext == null || patientContext.isBlank()) {
+            return noContextResponse(request.getQuery(), intent, System.currentTimeMillis() - start);
+        }
+
+        try {
+            // Step 1: parallel reasoning paths over patient data
+            List<ReasoningCandidate> candidates =
+                    multiReasoningService.generateTreatmentReasoningPaths(
+                            request.getQuery(), patientContext, intent);
+
+            if (candidates.isEmpty()) {
+                throw new AgentException("All treatment reasoning paths failed", null);
+            }
+
+            // Step 2: parallel reflection
+            List<ReflectionResult> reflections =
+                    selfReflectionService.reflectOnCandidates(candidates, request.getQuery(), patientContext);
+
+            // Step 3: scoring
+            List<ScoringResult> scores =
+                    scoringService.scoreCandidates(candidates, reflections, request.getQuery(), patientContext);
+
+            // Step 4: synthesis
+            SynthesisService.SynthesisOutput synthesis =
+                    synthesisService.synthesize(candidates, scores, request.getQuery(), intent);
+
+            double bestScore = scores.stream()
+                    .mapToDouble(ScoringResult::getOverallScore)
+                    .max()
+                    .orElse(0.0);
+
+            // Lenient guardrail: anti-hallucination prompts are already strict, and the
+            // source-of-truth is the patient's own record. Don't replace the answer just
+            // because the score is low.
+            GuardrailService.SafetyCheckResult safety =
+                    guardrailService.checkAnswerLenient(synthesis.answer(), bestScore);
+
+            ScoringResult bestScoringResult = scores.stream()
+                    .max(Comparator.comparingDouble(ScoringResult::getOverallScore))
+                    .orElse(null);
+
+            sessionMemory.saveQueryContext(sessionId, request.getQuery(), safety.safeAnswer());
+
+            long elapsed = System.currentTimeMillis() - start;
+            log.info("SRLM-treatment completed in {}ms [intent={}, paths={}, bestScore={}, blocked={}]",
+                    elapsed, intent, candidates.size(), bestScore, safety.blocked());
+
+            boolean includeTrace = Boolean.TRUE.equals(request.getIncludeSteps());
+
+            return SRLMResponse.builder()
+                    .query(request.getQuery())
+                    .finalAnswer(safety.safeAnswer())
+                    .selectedPath(bestScoringResult != null ? bestScoringResult.getPath() : null)
+                    .confidenceScore(bestScore)
+                    .detectedIntent(intent)
+                    .allCandidates(includeTrace ? candidates : null)
+                    .reflections(includeTrace ? reflections : null)
+                    .scores(includeTrace ? scores : null)
+                    .synthesisReasoning(synthesis.reasoning())
+                    .processingTimeMs(elapsed)
+                    .model(model)
+                    .build();
+        } catch (AgentException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("SRLM-treatment processing failed: {}", ex.getMessage(), ex);
+            throw new AgentException("SRLM-treatment failed: " + ex.getMessage(), ex);
+        }
+    }
+
     // ── Retrieval Feedback Loop ───────────────────────────────────────────────
 
     private String applyRetrievalFeedback(

@@ -56,6 +56,11 @@ public class DoctorController {
         return ResponseEntity.ok(doctorService.getMyPatients(userId));
     }
 
+    @GetMapping("/patients/lookup")
+    public ResponseEntity<PatientProfileResponse> lookupPatientByMrn(@RequestParam String mrn) {
+        return ResponseEntity.ok(doctorService.lookupPatientByMrn(mrn));
+    }
+
     // ── Medical records ──────────────────────────────────────────────────────
 
     @PostMapping("/records")
