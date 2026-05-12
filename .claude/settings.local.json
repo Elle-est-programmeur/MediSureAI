@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "mcp__ide__getDiagnostics",
-      "PowerShell($backendDir = \"C:\\\\Users\\\\shrey\\\\OneDrive\\\\문서\\\\MediSureAI\\\\Backend\"; $frontendDir = \"C:\\\\Users\\\\shrey\\\\OneDrive\\\\문서\\\\MediSureAI\\\\Frontend\"; $env:JAVA_HOME = \"C:\\\\Program Files\\\\Java\\\\jdk-21\"; Start-Process -FilePath \"$backendDir\\\\mvnw.cmd\" -ArgumentList \"spring-boot:run\" -WorkingDirectory $backendDir -WindowStyle Hidden -RedirectStandardOutput \"C:\\\\Users\\\\shrey\\\\AppData\\\\Local\\\\Temp\\\\backend.log\" -RedirectStandardError \"C:\\\\Users\\\\shrey\\\\AppData\\\\Local\\\\Temp\\\\backend.err\"; Start-Process -FilePath \"npm.cmd\" -ArgumentList \"run\",\"dev\" -WorkingDirectory $frontendDir -WindowStyle Hidden -RedirectStandardOutput \"C:\\\\Users\\\\shrey\\\\AppData\\\\Local\\\\Temp\\\\frontend.log\" -RedirectStandardError \"C:\\\\Users\\\\shrey\\\\AppData\\\\Local\\\\Temp\\\\frontend.err\")"
-    ]
-  }
-}
