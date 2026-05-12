@@ -172,6 +172,8 @@ public class MultiReasoningService {
             case PATIENT_BENEFIT ->
                     "Focus on practical patient benefit: what does this mean for the patient's " +
                     "out-of-pocket costs, access to care, and next steps?";
+            default ->
+                    "Provide a clear, accurate answer grounded strictly in the provided context.";
         };
 
         return String.format("""
