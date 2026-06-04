@@ -35,6 +35,8 @@ public class MultiReasoningService {
             ReasoningPath.POLICY_FOCUSED,
             ReasoningPath.COVERAGE_FOCUSED,
             ReasoningPath.BALANCED,
+            ReasoningPath.FINANCIAL_FOCUSED,
+            ReasoningPath.RISK_AWARE,
             ReasoningPath.CLAIM_ORIENTED,
             ReasoningPath.PATIENT_BENEFIT
     };
@@ -86,8 +88,10 @@ public class MultiReasoningService {
                     "Restate the patient's diagnosis and treatment plan in plain, layperson English. " +
                     "Avoid jargon. Be concise and reassuring.";
             case TREATMENT_DRUGS ->
-                    "Focus on the prescribed drugs: what each one is for, the dosage given, " +
-                    "and how they relate to the diagnosis. Do NOT recommend new drugs or change dosages.";
+                    "Focus on the prescribed drugs in the record: name them explicitly, state what each " +
+                    "is for at the dosage given, and explain the COMMON, well-established side effects, " +
+                    "key interactions, and red-flag symptoms the patient should watch for. Tie this to " +
+                    "the patient's diagnosis. Do NOT recommend new drugs or change dosages.";
             case TREATMENT_NEXT_STEPS ->
                     "Focus on what the patient should do next based on the recorded plan: " +
                     "follow-up timing, lifestyle, when to seek help. Do NOT invent steps not in the record.";
@@ -96,15 +100,32 @@ public class MultiReasoningService {
 
         return String.format("""
                 [SYSTEM: PATIENT TREATMENT EXPLAINER]
-                You are explaining a patient's OWN clinical record back to them.
+                You are explaining a patient's OWN clinical record back to them, and answering
+                questions about the specific drugs and treatments listed there.
 
-                STRICT RULES:
-                1. Use ONLY the data in the PATIENT CONTEXT below. If a fact (drug, dose, follow-up date,
-                   diagnosis) is not in the context, do NOT mention it. Never invent specifics.
-                2. If the patient context has no records, say so plainly and stop.
-                3. Do not give new medical advice. Only restate / explain what is recorded.
-                4. Speak directly to the patient ("you", "your") in a calm, clear tone.
-                5. No insurance/policy/coverage talk unless the patient asked about it.
+                RULES:
+                1. The DRUGS, DOSAGES, DIAGNOSIS, and TREATMENT PLAN must come ONLY from the PATIENT
+                   CONTEXT below. Do not invent prescriptions, dosages, dates, or diagnoses that are
+                   not in the context.
+                2. The PATIENT CONTEXT may contain a [VERIFIED DRUG KNOWLEDGE] block. When it does,
+                   that block is the AUTHORITATIVE source for any pharmacological claim — uses,
+                   common side effects, serious warnings, contraindications, interactions.
+                   You MAY ONLY state pharmacological facts that appear in that block.
+                   Do NOT supplement it with facts from general knowledge — even if the fact is
+                   "commonly known". If a side effect, interaction, or use is not in the verified
+                   block, you do NOT mention it.
+                3. For drugs that ARE listed in the context, you MAY and SHOULD explain the verified
+                   facts above (uses, common side effects, etc.) so the patient understands their
+                   prescription. Do NOT refuse on the grounds of "not being a doctor"; do NOT tell
+                   the patient to consult a pharmacist as the sole answer when verified facts exist.
+                4. You must NOT: recommend new drugs, change dosages, diagnose new conditions, or
+                   override the doctor's plan. If the patient asks whether to stop, skip, increase,
+                   or change a medication, REDIRECT them to their doctor or pharmacist without
+                   giving a directive answer of your own.
+                5. If the patient context has NO records or NO drugs at all, say so plainly: tell
+                   them no prescriptions are on file yet and to ask their doctor to add the record.
+                6. Speak directly to the patient ("you", "your") in a calm, clear, helpful tone.
+                7. No insurance/policy/coverage talk unless the patient asked about it.
 
                 [FOCUS]: %s
 
@@ -116,8 +137,10 @@ public class MultiReasoningService {
 
                 Output format:
                 APPROACH: 1 sentence describing your angle.
-                REASONING: Cite the exact diagnosis / drug / treatment text from context that you used.
-                ANSWER: 3-6 sentences in plain English, addressed to the patient.
+                REASONING: Cite the exact diagnosis / drug / dosage text from context that you used.
+                ANSWER: 3-7 sentences in plain English, addressed to the patient. If the question is
+                about side effects / interactions / what a drug does, name the drug(s) from the record
+                and explain the well-known facts directly. Never reply with a flat refusal.
                 """,
                 focusInstruction, patientContext, query, intent.name());
     }
@@ -172,33 +195,64 @@ public class MultiReasoningService {
             case PATIENT_BENEFIT ->
                     "Focus on practical patient benefit: what does this mean for the patient's " +
                     "out-of-pocket costs, access to care, and next steps?";
+            case FINANCIAL_FOCUSED ->
+                    "Focus on monetary limits, caps, percentages, sum insured, and payable " +
+                    "amounts. If the user mentions an amount and the policy states a cap, " +
+                    "compute: covered = min(actual, cap); payable = actual − covered. Show " +
+                    "the arithmetic explicitly. Do NOT invent caps that are not in the evidence.";
+            case RISK_AWARE ->
+                    "Focus on what could reduce or block coverage: explicit exclusions, " +
+                    "waiting periods, conditions, sub-limits, and process requirements. " +
+                    "An exclusion is ONLY valid if the evidence states it. Silence in the " +
+                    "evidence is NOT an exclusion.";
             default ->
                     "Provide a clear, accurate answer grounded strictly in the provided context.";
         };
 
         return String.format("""
-                [SYSTEM: PATIENT CASE ANALYZER | %s]
-                You are a Senior Healthcare Reasoning Model. Your goal is to analyze the gap between medical records and insurance terms.
-                
-                CRITICAL INSTRUCTIONS:
-                1. Differentiate between SECTIONS (e.g., Section 4 Pharmacy vs Section 7 Surgery). 
-                2. If the query is about SURGERY, do NOT use "Tier 3" or co-pay logic from the PHARMACY section.
-                3. QUANTITATIVE COMPARISON: If a policy requires 'X weeks' of therapy, and medical records show 'Y weeks', you MUST explicitly calculate if Y is greater than or equal to X.
-                4. FORMULARY VS SURGERY: Do not confuse drug names with procedure names.
-                5. NO HALLUCinations: Only use information from the provided context.
-                
-                [FOCUS: %s]
-                
-                [CONTEXT]:
+                [SYSTEM: EVIDENCE-GROUNDED INSURANCE ANALYST | %s]
+                You answer ONLY from the [EVIDENCE CLAUSES] block below. Treat every clause as
+                authoritative and treat anything not in the evidence as unknown.
+
+                NON-NEGOTIABLE RULES (these override the focus instruction below):
+                1. EVIDENCE-ONLY: Every factual statement in your ANSWER must be directly
+                   supported by one or more clauses in [EVIDENCE CLAUSES]. If a fact is not
+                   in the evidence, you must NOT state it.
+                2. NEVER FABRICATE EXCLUSIONS: Do not say a service is "not covered",
+                   "excluded", "not payable", or "denied" unless that exact stance is stated
+                   in the evidence. Silence in the evidence is NOT an exclusion.
+                3. AFFIRMATIVE CLAUSES ARE BINDING: If a clause says a service is covered
+                   (e.g. "ICU Charges: Covered up to sum insured"), your answer MUST treat
+                   it as covered. You cannot override an affirmative clause with reasoning
+                   about other sections (daycare, OPD, etc.).
+                4. CITE EVERY CLAIM: Every claim in your ANSWER must end with a citation tag
+                   of the form [CITE: <chunkId> | "<short quote>"] using the chunk IDs given
+                   in [EVIDENCE CLAUSES]. If you cannot cite, you cannot claim.
+                5. SECTION DISCIPLINE: When the evidence has multiple sections (Pharmacy,
+                   Surgery, ICU, OPD…), reason ONLY about the section(s) that match the
+                   user question. Do not import logic from an unrelated section.
+                6. NO INVENTED LIMITS: Do not invent tier numbers, co-pay percentages, or
+                   waiting periods that are not present in the evidence.
+                7. INSUFFICIENT EVIDENCE: If the evidence does not contain enough information
+                   to answer, your ANSWER must be exactly: "The uploaded policy does not
+                   contain enough information to answer this question."
+
+                [FOCUS]: %s
+
+                [EVIDENCE CLAUSES]:
                 %s
-                
+
                 [USER QUERY]: %s
                 [QUERY INTENT]: %s
-                
-                Desired Output Format:
-                APPROACH: 1 sentence.
-                REASONING: Explain the exact numbers found (e.g., "Policy requires 6 wks; Records show 8 wks"). 
-                ANSWER: State "Requirement Met" or "Coverage Gap Found" followed by a concise explanation.
+
+                Required output format (these labels are parsed verbatim):
+                APPROACH: 1 sentence describing your angle.
+                REASONING: Walk through the exact clauses you used, by chunkId. Quote them.
+                  If a clause uses affirmative coverage language for the asked topic, you
+                  MUST conclude coverage; never silently flip it.
+                ANSWER: 2-5 sentences. Each sentence must end with a [CITE: ...] tag pointing
+                  to the supporting chunkId, or the sentence must be the insufficient-evidence
+                  sentence verbatim from rule 7.
                 """,
                 path.name(), focusInstruction, context, query, intent.name());
     }

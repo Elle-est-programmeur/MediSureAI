@@ -117,7 +117,11 @@ public class SynthesisService {
 
         sb.append("Synthesize these into ONE final answer. ")
           .append("Keep it concise (3-5 sentences), accurate, and actionable. ")
-          .append("Do not mention reasoning paths or scores — speak directly to the patient.");
+          .append("Do not mention reasoning paths or scores — speak directly to the patient. ")
+          .append("PRESERVE any [CITE: chunkId | \"quote\"] tags from the candidates — those are ")
+          .append("evidence pointers and must travel into the final answer. ")
+          .append("Do NOT introduce facts that are not already in at least one candidate. ")
+          .append("Do NOT add exclusions, denials, or limitations that no candidate stated.");
 
         return sb.toString();
     }

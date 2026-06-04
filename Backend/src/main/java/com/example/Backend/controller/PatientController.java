@@ -31,7 +31,7 @@ public class PatientController {
      */
     @GetMapping("/timeline")
     @PreAuthorize("hasRole('PATIENT')")
-    public ResponseEntity<List<DocumentMetadataDTO>> getTimeline(Authentication authentication) {
+    public ResponseEntity<List<TimelineEventDTO>> getTimeline(Authentication authentication) {
         Users user = resolveUser(authentication);
         return ResponseEntity.ok(patientService.getTimeline(user));
     }
@@ -81,6 +81,25 @@ public class PatientController {
     public ResponseEntity<List<BillingResponse>> getMyBilling(Authentication authentication) {
         Long userId = resolveUserId(authentication);
         return ResponseEntity.ok(patientService.getMyBilling(userId));
+    }
+
+    @PostMapping("/billing/{id}/pay")
+    @PreAuthorize("hasRole('PATIENT')")
+    public ResponseEntity<BillingResponse> payBilling(
+            @PathVariable Long id,
+            @Valid @RequestBody PayBillRequest request,
+            Authentication authentication) {
+        Long userId = resolveUserId(authentication);
+        return ResponseEntity.ok(patientService.payBilling(userId, id, request.getPaymentMethod()));
+    }
+
+    @GetMapping("/billing/{id}/receipt")
+    @PreAuthorize("hasRole('PATIENT')")
+    public ResponseEntity<ReceiptDTO> getReceipt(
+            @PathVariable Long id,
+            Authentication authentication) {
+        Long userId = resolveUserId(authentication);
+        return ResponseEntity.ok(patientService.getReceipt(userId, id));
     }
 
     // ── Patient AI chat ──────────────────────────────────────────────────────

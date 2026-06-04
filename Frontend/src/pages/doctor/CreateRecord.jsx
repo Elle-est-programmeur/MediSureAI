@@ -16,6 +16,8 @@ export default function CreateRecord() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [mrnInput, setMrnInput] = useState("");
   const [mrnLooking, setMrnLooking] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const [form, setForm] = useState({
     patientUserId: "",
@@ -42,14 +44,30 @@ export default function CreateRecord() {
   }
 
   function selectPatient(patient) {
+    const userId = patient.userId || patient.id;
     setForm((prev) => ({
       ...prev,
-      patientUserId: patient.userId || patient.id,
+      patientUserId: userId,
       patientName: patient.name || patient.username || "",
       patientMRN: patient.medicalRecordNumber || "",
     }));
     setPatientSearch(patient.name || patient.username || "");
     setShowDropdown(false);
+    loadHistory(userId);
+  }
+
+  async function loadHistory(userId) {
+    if (!userId) { setHistory([]); return; }
+    setHistoryLoading(true);
+    try {
+      const data = await doctorAPI.getPatientHistory(userId);
+      setHistory(Array.isArray(data) ? data : []);
+    } catch (err) {
+      addToast(err.response?.data?.message || "Failed to load patient history", "error");
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
   }
 
   async function lookupByMRN() {
@@ -169,7 +187,7 @@ export default function CreateRecord() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => { setForm((p) => ({ ...p, patientUserId: "", patientName: "", patientMRN: "" })); setMrnInput(""); setPatientSearch(""); }}
+                    onClick={() => { setForm((p) => ({ ...p, patientUserId: "", patientName: "", patientMRN: "" })); setMrnInput(""); setPatientSearch(""); setHistory([]); }}
                     className="text-slate-400 hover:text-white text-lg"
                   >×</button>
                 </div>
@@ -321,9 +339,66 @@ export default function CreateRecord() {
             </button>
           </form>
 
-          {/* ── Right: Live Preview ── */}
+          {/* ── Right: History + Live Preview ── */}
           <div className="hidden lg:block">
-            <div className="sticky top-8">
+            <div className="sticky top-8 space-y-6">
+              {/* Patient History */}
+              {form.patientUserId && (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-semibold tracking-[0.2em] uppercase text-cyan-400" style={{ fontFamily: "Orbitron, sans-serif" }}>
+                      Patient History
+                    </h3>
+                    <span className="text-[10px] text-slate-500">
+                      {historyLoading ? "Loading…" : `${history.length} prior record${history.length === 1 ? "" : "s"}`}
+                    </span>
+                  </div>
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 max-h-72 overflow-y-auto">
+                    {historyLoading ? (
+                      <div className="flex justify-center py-4"><LoadingSpinner size="sm" /></div>
+                    ) : history.length === 0 ? (
+                      <p className="text-slate-400 text-xs text-center py-4">
+                        No prior medical records on file for this patient.
+                      </p>
+                    ) : (
+                      <ul className="space-y-3">
+                        {history.map((r) => (
+                          <li key={r.id} className="border-l-2 border-cyan-500/40 pl-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-white text-sm font-medium truncate">
+                                {r.diagnosis || "Untitled"}
+                              </span>
+                              <span className="text-[10px] text-slate-500 shrink-0">
+                                {r.createdAt ? String(r.createdAt).slice(0, 10) : ""}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 mt-0.5">
+                              {r.doctorName ? `Dr. ${r.doctorName}` : "—"}
+                              {r.doctorSpecialization ? ` • ${r.doctorSpecialization}` : ""}
+                            </div>
+                            {r.treatmentPlan && (
+                              <p className="text-slate-300 text-xs mt-1 line-clamp-2">{r.treatmentPlan}</p>
+                            )}
+                            {Array.isArray(r.drugs) && r.drugs.length > 0 && (
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                {r.drugs.slice(0, 5).map((d, i) => (
+                                  <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300">
+                                    💊 {d.name}{d.dosage ? ` ${d.dosage}` : ""}
+                                  </span>
+                                ))}
+                                {r.drugs.length > 5 && (
+                                  <span className="text-[10px] text-slate-500">+{r.drugs.length - 5} more</span>
+                                )}
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <h3 className="text-xs font-semibold tracking-[0.2em] uppercase text-cyan-400 mb-3" style={{ fontFamily: "Orbitron, sans-serif" }}>
                 Live Preview
               </h3>

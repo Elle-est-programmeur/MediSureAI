@@ -44,6 +44,9 @@ public class AgentOrchestrator {
     private final GuardrailService guardrailService;
     private final SessionMemoryService sessionMemory;
     private final SRLMOrchestrator srlmOrchestrator;
+    private final com.example.Backend.service.medical.DrugKnowledgeService drugKnowledgeService;
+    private final com.example.Backend.service.medical.MedicalResponseSafetyService medicalResponseSafetyService;
+    private final com.example.Backend.service.tools.DrugKnowledgeTool drugKnowledgeTool;
 
     @Value("${openai.model.completion}")
     private String model;
@@ -190,9 +193,44 @@ public class AgentOrchestrator {
                 toolOrchestrator.executeTools(toolContext, List.of(ToolType.PATIENT_DATA));
         String patientContext = toolOrchestrator.combineToolResults(toolResults);
 
+        // ── Inject verified drug knowledge ──────────────────────────────────
+        // Drugs are matched from both the patient's prescription (which lives
+        // inside patientContext) and the user's query. The verified block is
+        // appended so the SRLM prompt has authoritative pharmacological data.
+        java.util.LinkedHashSet<com.example.Backend.dto.DrugInfo> drugs =
+                new java.util.LinkedHashSet<>();
+        drugs.addAll(drugKnowledgeService.extractMentionedDrugs(patientContext));
+        drugs.addAll(drugKnowledgeService.extractMentionedDrugs(request.getQuery()));
+        String enrichedContext = patientContext;
+        if (!drugs.isEmpty()) {
+            String knowledgeBlock = drugKnowledgeTool.formatBlock(new java.util.ArrayList<>(drugs));
+            enrichedContext = patientContext + "\n\n" + knowledgeBlock;
+            log.info("AgentOrchestrator: injected verified knowledge for {} drug(s) into treatment context", drugs.size());
+        }
+
         // SRLM call (parallel reasoning + reflection + synthesis)
         com.example.Backend.dto.SRLMResponse srlm =
-                srlmOrchestrator.processTreatmentQuery(request, patientContext, intent);
+                srlmOrchestrator.processTreatmentQuery(request, enrichedContext, intent);
+
+        // ── Medical safety pass ─────────────────────────────────────────────
+        String safeAnswer = srlm.getFinalAnswer();
+        java.util.List<String> safetyNotes = new java.util.ArrayList<>();
+        if (safeAnswer != null) {
+            // Step A: redirect prescribing-directive questions to a doctor
+            var directive = medicalResponseSafetyService.handlePrescribingDirective(request.getQuery(), safeAnswer);
+            safeAnswer = directive.safeAnswer();
+            if (directive.redirected()) safetyNotes.add("Prescribing-directive redirect applied");
+
+            // Step B: validate against the verified drug DB and sanitize unsupported claims
+            var validation = medicalResponseSafetyService.validate(safeAnswer, new java.util.ArrayList<>(drugs));
+            safeAnswer = validation.safeAnswer();
+            if (validation.sanitized()) {
+                safetyNotes.add("Unsupported pharmacological claims removed: "
+                        + validation.issues().stream()
+                                .map(com.example.Backend.service.medical.MedicalResponseSafetyService.SafetyIssue::getClaim)
+                                .toList());
+            }
+        }
 
         long elapsed = System.currentTimeMillis() - start;
 
@@ -200,17 +238,24 @@ public class AgentOrchestrator {
         double score = srlm.getConfidenceScore();
         String level = score >= 8.0 ? "HIGH" : score >= 5.0 ? "MEDIUM" : "LOW";
 
+        java.util.List<String> factors = new java.util.ArrayList<>();
+        factors.add("SRLM multi-path reasoning");
+        factors.add("selected: " + (srlm.getSelectedPath() != null ? srlm.getSelectedPath().name() : "n/a"));
+        if (srlm.getSynthesisReasoning() != null) factors.add(srlm.getSynthesisReasoning());
+        if (!drugs.isEmpty()) {
+            factors.add("verified drugs: " + drugs.stream()
+                    .map(com.example.Backend.dto.DrugInfo::getDrugName).toList());
+        }
+        factors.addAll(safetyNotes);
+
         return QueryResponse.builder()
                 .query(request.getQuery())
-                .answer(srlm.getFinalAnswer())
+                .answer(safeAnswer)
                 .detectedIntent(intent)
                 .intentConfidence(intentResult.getConfidence())
                 .overallConfidence(score)
                 .confidenceLevel(level)
-                .confidenceFactors(java.util.List.of(
-                        "SRLM multi-path reasoning",
-                        "selected: " + (srlm.getSelectedPath() != null ? srlm.getSelectedPath().name() : "n/a"),
-                        srlm.getSynthesisReasoning() != null ? srlm.getSynthesisReasoning() : ""))
+                .confidenceFactors(factors)
                 .citations(new ArrayList<>())
                 .processingTimeMs(elapsed)
                 .model(model)

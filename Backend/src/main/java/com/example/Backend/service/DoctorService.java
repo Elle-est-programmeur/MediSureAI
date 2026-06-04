@@ -9,12 +9,14 @@ import com.example.Backend.dto.MedicalRecordRequest;
 import com.example.Backend.dto.MedicalRecordResponse;
 import com.example.Backend.dto.PatientProfileResponse;
 import com.example.Backend.model.Billing;
+import com.example.Backend.model.BillingStatus;
 import com.example.Backend.model.Doctor;
 import com.example.Backend.model.Drug;
 import com.example.Backend.model.MedicalRecord;
 import com.example.Backend.model.Patient;
 import com.example.Backend.model.Users;
 import com.example.Backend.repository.BillingRepository;
+import com.example.Backend.repository.ReceiptRepository;
 import com.example.Backend.repository.DoctorRepository;
 import com.example.Backend.repository.MedicalRecordRepository;
 import com.example.Backend.repository.PatientRepository;
@@ -42,6 +44,7 @@ public class DoctorService {
     private final PatientRepository patientRepository;
     private final MedicalRecordRepository medicalRecordRepository;
     private final BillingRepository billingRepository;
+    private final ReceiptRepository receiptRepository;
     private final UserCredRepo userCredRepo;
 
     // ── Profile ───────────────────────────────────────────────────────────────
@@ -168,6 +171,37 @@ public class DoctorService {
         medicalRecordRepository.delete(record);
     }
 
+    // ── Records by this doctor ────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<MedicalRecordResponse> getMyRecords(Long doctorUserId) {
+        Doctor doctor = doctorRepository.findByUserId(doctorUserId)
+                .orElseThrow(() -> new EntityNotFoundException("Doctor profile not found"));
+        return medicalRecordRepository.findByDoctorIdOrderByCreatedAtDesc(doctor.getId())
+                .stream()
+                .map(this::toRecordResponse)
+                .toList();
+    }
+
+    // ── Patient history (across all treating doctors) ─────────────────────────
+
+    /**
+     * Treating-doctor view: returns every medical record on file for the given
+     * patient user, regardless of which doctor authored it. Used by doctors to
+     * understand prior diagnoses, treatment plans, and prescriptions before
+     * adding a new record.
+     */
+    @Transactional(readOnly = true)
+    public List<MedicalRecordResponse> getPatientHistory(Long patientUserId) {
+        Patient patient = patientRepository.findByUserId(patientUserId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Patient profile not found for user " + patientUserId));
+        return medicalRecordRepository.findByPatientIdOrderByCreatedAtDesc(patient.getId())
+                .stream()
+                .map(this::toRecordResponse)
+                .toList();
+    }
+
     // ── Patients seen by this doctor ──────────────────────────────────────────
 
     @Transactional
@@ -243,13 +277,48 @@ public class DoctorService {
     }
 
     private BillingResponse toBillingResponse(Billing b) {
+        MedicalRecord record = b.getRecord();
+        Patient patient = b.getPatient();
+        BillingStatus status = b.getStatus() == null ? BillingStatus.PENDING : b.getStatus();
+        com.example.Backend.dto.ReceiptDTO receiptDto = receiptRepository.findByBillingId(b.getId())
+                .map(r -> com.example.Backend.dto.ReceiptDTO.builder()
+                        .id(r.getId())
+                        .billingId(b.getId())
+                        .receiptNumber(r.getReceiptNumber())
+                        .transactionRef(r.getTransactionRef())
+                        .paymentMethod(r.getPaymentMethod())
+                        .amount(r.getAmount())
+                        .patientName(r.getPatientName())
+                        .description(r.getDescription())
+                        .issuedAt(r.getIssuedAt())
+                        .build())
+                .orElse(null);
         return BillingResponse.builder()
                 .id(b.getId())
                 .totalCost(b.getTotalCost())
                 .description(b.getDescription())
                 .createdAt(b.getCreatedAt())
-                .recordId(b.getRecord() != null ? b.getRecord().getId() : null)
+                .recordId(record != null ? record.getId() : null)
+                .recordDiagnosis(record != null ? record.getDiagnosis() : null)
+                .patientName(patient != null ? patient.getName() : null)
+                .status(status)
+                .paymentMethod(b.getPaymentMethod())
+                .paidAt(b.getPaidAt())
+                .receipt(receiptDto)
                 .build();
+    }
+
+    // ── Doctor billing list ───────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<BillingResponse> getMyBilling(Long doctorUserId) {
+        Doctor doctor = doctorRepository.findByUserId(doctorUserId)
+                .orElseThrow(() -> new EntityNotFoundException("Doctor profile not found"));
+        return medicalRecordRepository.findByDoctorIdOrderByCreatedAtDesc(doctor.getId())
+                .stream()
+                .flatMap(rec -> billingRepository.findByRecordIdOrderByCreatedAtDesc(rec.getId()).stream())
+                .map(this::toBillingResponse)
+                .toList();
     }
 
     private PatientProfileResponse toPatientResponse(Patient p) {

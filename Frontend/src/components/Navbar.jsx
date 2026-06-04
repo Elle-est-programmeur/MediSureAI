@@ -7,7 +7,7 @@ const DOCTOR_LINKS = [
   { label: "Dashboard", path: "/doctor/dashboard" },
   { label: "My Patients", path: "/doctor/patients" },
   { label: "New Record", path: "/doctor/records/new" },
-  { label: "Billing", path: "/doctor/billing/new" },
+  { label: "Billing", path: "/doctor/billing" },
 ];
 
 const PATIENT_LINKS = [

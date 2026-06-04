@@ -21,9 +21,21 @@ public class SRLMResponse {
     private double confidenceScore;
     private QueryIntent detectedIntent;
 
+    // Evidence + reasoning trace
+    private List<RetrievedChunk> retrievedChunks;
+    private List<ClauseClassification> clauseClassifications;
     private List<ReasoningCandidate> allCandidates;
     private List<ReflectionResult> reflections;
     private List<ScoringResult> scores;
+    private List<ContradictionReport> contradictionReports;
+    private List<Citation> citations;
+    private List<String> rejectedPaths;
+    private List<String> safetyWarnings;
+    private FinancialCalculation financialCalculation;
+    private StructuredAnswer structuredAnswer;
+    private Integer retrievalAttempts;
+    private Boolean retrievalValid;
+    private String retrievalRejectionReason;
 
     private String synthesisReasoning;
     private long processingTimeMs;

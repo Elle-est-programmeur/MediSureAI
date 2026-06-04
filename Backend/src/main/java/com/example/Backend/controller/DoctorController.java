@@ -61,6 +61,11 @@ public class DoctorController {
         return ResponseEntity.ok(doctorService.lookupPatientByMrn(mrn));
     }
 
+    @GetMapping("/patients/{userId}/records")
+    public ResponseEntity<List<MedicalRecordResponse>> getPatientHistory(@PathVariable Long userId) {
+        return ResponseEntity.ok(doctorService.getPatientHistory(userId));
+    }
+
     // ── Medical records ──────────────────────────────────────────────────────
 
     @PostMapping("/records")
@@ -77,6 +82,12 @@ public class DoctorController {
             Authentication authentication) {
         Long userId = resolveUserId(authentication);
         return ResponseEntity.ok(doctorService.getMedicalRecord(id, userId));
+    }
+
+    @GetMapping("/records")
+    public ResponseEntity<List<MedicalRecordResponse>> getMyRecords(Authentication authentication) {
+        Long userId = resolveUserId(authentication);
+        return ResponseEntity.ok(doctorService.getMyRecords(userId));
     }
 
     @PutMapping("/records/{id}")
@@ -105,6 +116,12 @@ public class DoctorController {
             Authentication authentication) {
         Long userId = resolveUserId(authentication);
         return ResponseEntity.ok(doctorService.createBilling(userId, request));
+    }
+
+    @GetMapping("/billing")
+    public ResponseEntity<List<BillingResponse>> getMyBilling(Authentication authentication) {
+        Long userId = resolveUserId(authentication);
+        return ResponseEntity.ok(doctorService.getMyBilling(userId));
     }
 
     // ── Internals ────────────────────────────────────────────────────────────

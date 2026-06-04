@@ -12,4 +12,6 @@ public interface BillingRepository extends JpaRepository<Billing, Long> {
     List<Billing> findByPatientId(Long patientId);
 
     List<Billing> findByPatientIdOrderByCreatedAtDesc(Long patientId);
+
+    List<Billing> findByRecordIdOrderByCreatedAtDesc(Long recordId);
 }

@@ -16,6 +16,7 @@ import DoctorPatients from "./pages/doctor/DoctorPatients";
 import CreateRecord from "./pages/doctor/CreateRecord";
 import RecordDetail from "./pages/doctor/RecordDetail";
 import CreateBilling from "./pages/doctor/CreateBilling";
+import DoctorBilling from "./pages/doctor/DoctorBilling";
 
 // Patient pages
 import PatientDashboard from "./pages/patient/PatientDashboard";
@@ -162,6 +163,14 @@ export default function App() {
             element={
               <ProtectedRoute><RoleRoute role="DOCTOR">
                 <AnimatedPage><RecordDetail /></AnimatedPage>
+              </RoleRoute></ProtectedRoute>
+            }
+          />
+          <Route
+            path="/doctor/billing"
+            element={
+              <ProtectedRoute><RoleRoute role="DOCTOR">
+                <AnimatedPage><DoctorBilling /></AnimatedPage>
               </RoleRoute></ProtectedRoute>
             }
           />

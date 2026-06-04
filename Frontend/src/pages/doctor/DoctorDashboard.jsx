@@ -11,7 +11,7 @@ const SIDEBAR_LINKS = [
   { label: "Dashboard", path: "/doctor/dashboard", icon: "📊" },
   { label: "Patients", path: "/doctor/patients", icon: "👥" },
   { label: "New Record", path: "/doctor/records/new", icon: "📝" },
-  { label: "Billing", path: "/doctor/billing/new", icon: "💳" },
+  { label: "Billing", path: "/doctor/billing", icon: "💳" },
 ];
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.07 } } };
