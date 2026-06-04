@@ -5,15 +5,28 @@ import { useToast } from "../../context/ToastContext";
 import { patientAPI } from "../../services/api";
 import LoadingSpinner from "../../components/ui/LoadingSpinner";
 import EmptyState from "../../components/ui/EmptyState";
+import PaymentModal from "../../components/PaymentModal";
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.07 } } };
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
+
+function StatusPill({ status }) {
+  const s = status || "PENDING";
+  if (s === "PAID") {
+    return <span className="inline-flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold">✓ Paid</span>;
+  }
+  if (s === "PROCESSING") {
+    return <span className="inline-flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30 font-semibold">⟳ Processing</span>;
+  }
+  return <span className="inline-flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 font-semibold">Pending</span>;
+}
 
 export default function PatientBilling() {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const [billing, setBilling] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeBill, setActiveBill] = useState(null);
 
   useEffect(() => {
     fetchBilling();
@@ -35,7 +48,23 @@ export default function PatientBilling() {
     navigate(`/patient/chat?prefill=${encodeURIComponent(query)}`);
   }
 
-  const totalAmount = billing.reduce((sum, b) => sum + (b.totalCost || b.amount || 0), 0);
+  function handlePaid(updated) {
+    setBilling((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+    addToast("Payment successful", "success");
+  }
+
+  async function viewReceipt(entry) {
+    try {
+      const receipt = await patientAPI.getReceipt(entry.id);
+      setActiveBill({ ...entry, receipt });
+    } catch (err) {
+      addToast(err.response?.data?.message || "Could not load receipt", "error");
+    }
+  }
+
+  const totalAmount = billing.reduce((sum, b) => sum + Number(b.totalCost || 0), 0);
+  const paidAmount = billing.filter((b) => b.status === "PAID").reduce((sum, b) => sum + Number(b.totalCost || 0), 0);
+  const unpaidAmount = totalAmount - paidAmount;
 
   if (loading) {
     return (
@@ -72,18 +101,30 @@ export default function PatientBilling() {
           </div>
         </div>
 
-        {/* Total summary card */}
+        {/* Summary cards */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 text-center"
+          className="mb-8 grid grid-cols-1 sm:grid-cols-3 gap-3"
         >
-          <p className="text-xs font-semibold tracking-[0.2em] uppercase text-slate-400 mb-2" style={{ fontFamily: "Orbitron, sans-serif" }}>
-            Total Billing Amount
-          </p>
-          <p className="text-4xl font-bold bg-gradient-to-r from-cyan-500 to-blue-600 bg-clip-text text-transparent" style={{ fontFamily: "Orbitron, sans-serif" }}>
-            ₹{totalAmount.toLocaleString()}
-          </p>
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-5 text-center">
+            <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-slate-400 mb-1" style={{ fontFamily: "Orbitron, sans-serif" }}>Total</p>
+            <p className="text-2xl font-bold bg-gradient-to-r from-cyan-500 to-blue-600 bg-clip-text text-transparent" style={{ fontFamily: "Orbitron, sans-serif" }}>
+              ₹{totalAmount.toLocaleString()}
+            </p>
+          </div>
+          <div className="bg-white/5 backdrop-blur-xl border border-emerald-500/20 rounded-2xl p-5 text-center">
+            <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-slate-400 mb-1" style={{ fontFamily: "Orbitron, sans-serif" }}>Paid</p>
+            <p className="text-2xl font-bold text-emerald-400" style={{ fontFamily: "Orbitron, sans-serif" }}>
+              ₹{paidAmount.toLocaleString()}
+            </p>
+          </div>
+          <div className="bg-white/5 backdrop-blur-xl border border-amber-500/20 rounded-2xl p-5 text-center">
+            <p className="text-[10px] font-semibold tracking-[0.2em] uppercase text-slate-400 mb-1" style={{ fontFamily: "Orbitron, sans-serif" }}>Outstanding</p>
+            <p className="text-2xl font-bold text-amber-400" style={{ fontFamily: "Orbitron, sans-serif" }}>
+              ₹{unpaidAmount.toLocaleString()}
+            </p>
+          </div>
         </motion.div>
 
         {billing.length === 0 ? (
@@ -103,33 +144,49 @@ export default function PatientBilling() {
                       <th className="text-left px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
                       <th className="text-left px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</th>
                       <th className="text-right px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Amount</th>
-                      <th className="text-right px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">AI Coverage</th>
+                      <th className="text-center px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                      <th className="text-right px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <motion.tr>
-                      {/* just for stagger context */}
-                    </motion.tr>
                     {billing.map((b, i) => (
                       <motion.tr
                         key={b.id || i}
                         variants={item}
                         className="border-b border-white/5 hover:bg-white/5 transition-colors"
                       >
-                        <td className="px-6 py-4 text-slate-400 text-sm">{b.createdAt || b.date || "—"}</td>
-                        <td className="px-6 py-4 text-white text-sm">{b.description || "Billing entry"}</td>
+                        <td className="px-6 py-4 text-slate-400 text-sm">{b.createdAt ? String(b.createdAt).slice(0, 10) : "—"}</td>
+                        <td className="px-6 py-4 text-white text-sm">{b.description || b.recordDiagnosis || "Billing entry"}</td>
                         <td className="px-6 py-4 text-right">
                           <span className="text-white font-bold" style={{ fontFamily: "Orbitron, sans-serif" }}>
-                            ₹{(b.totalCost || b.amount || 0).toLocaleString()}
+                            ₹{Number(b.totalCost || 0).toLocaleString()}
                           </span>
                         </td>
+                        <td className="px-6 py-4 text-center"><StatusPill status={b.status} /></td>
                         <td className="px-6 py-4 text-right">
-                          <button
-                            onClick={() => analyzeWithAI(b)}
-                            className="text-xs px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 transition-colors"
-                          >
-                            Analyze
-                          </button>
+                          <div className="flex items-center gap-2 justify-end">
+                            {b.status === "PAID" ? (
+                              <button
+                                onClick={() => viewReceipt(b)}
+                                className="text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                              >
+                                Receipt
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setActiveBill(b)}
+                                className="text-xs px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-cyan-600 text-white font-medium hover:scale-105 transition-transform"
+                              >
+                                Pay Now
+                              </button>
+                            )}
+                            <button
+                              onClick={() => analyzeWithAI(b)}
+                              className="text-xs px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 transition-colors"
+                            >
+                              Analyze
+                            </button>
+                          </div>
                         </td>
                       </motion.tr>
                     ))}
@@ -148,25 +205,52 @@ export default function PatientBilling() {
                 >
                   <div className="flex justify-between items-start mb-2">
                     <div className="min-w-0">
-                      <p className="text-white text-sm font-medium truncate">{b.description || "Billing entry"}</p>
-                      <p className="text-slate-400 text-xs">{b.createdAt || b.date || "—"}</p>
+                      <p className="text-white text-sm font-medium truncate">{b.description || b.recordDiagnosis || "Billing entry"}</p>
+                      <p className="text-slate-400 text-xs">{b.createdAt ? String(b.createdAt).slice(0, 10) : "—"}</p>
                     </div>
                     <span className="text-white font-bold text-sm" style={{ fontFamily: "Orbitron, sans-serif" }}>
-                      ₹{(b.totalCost || b.amount || 0).toLocaleString()}
+                      ₹{Number(b.totalCost || 0).toLocaleString()}
                     </span>
                   </div>
-                  <button
-                    onClick={() => analyzeWithAI(b)}
-                    className="w-full mt-2 py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-medium"
-                  >
-                    🤖 AI Analysis
-                  </button>
+                  <div className="flex items-center justify-between gap-2 mt-2">
+                    <StatusPill status={b.status} />
+                    <div className="flex items-center gap-2">
+                      {b.status === "PAID" ? (
+                        <button
+                          onClick={() => viewReceipt(b)}
+                          className="py-2 px-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium"
+                        >
+                          Receipt
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setActiveBill(b)}
+                          className="py-2 px-3 rounded-lg bg-gradient-to-r from-emerald-500 to-cyan-600 text-white text-xs font-semibold"
+                        >
+                          Pay Now
+                        </button>
+                      )}
+                      <button
+                        onClick={() => analyzeWithAI(b)}
+                        className="py-2 px-3 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs"
+                      >
+                        🤖
+                      </button>
+                    </div>
+                  </div>
                 </motion.div>
               ))}
             </motion.div>
           </>
         )}
       </div>
+
+      <PaymentModal
+        bill={activeBill}
+        open={!!activeBill}
+        onClose={() => setActiveBill(null)}
+        onPaid={handlePaid}
+      />
     </div>
   );
 }

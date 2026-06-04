@@ -97,7 +97,7 @@ export default function PatientFormulary() {
               >
                 <div className="flex items-start justify-between gap-4 mb-3">
                   <div>
-                    <h3 className="text-lg font-bold text-white" style={{ fontFamily: "Orbitron, sans-serif" }}>
+                    <h3 className="text-lg font-bold text-white capitalize" style={{ fontFamily: "Orbitron, sans-serif" }}>
                       {drug.name || drug.drugName || drug.brandName || query}
                     </h3>
                     {drug.genericName && (
@@ -146,10 +146,10 @@ export default function PatientFormulary() {
                 </div>
 
                 {/* Description / notes */}
-                {(drug.description || drug.notes || drug.response) && (
+                {(drug.description || drug.notes || drug.response || drug.finalAnswer) && (
                   <div className="mt-3 pt-3 border-t border-white/10">
                     <p className="text-slate-300 text-sm whitespace-pre-wrap">
-                      {drug.description || drug.notes || drug.response}
+                      {drug.description || drug.notes || drug.response || drug.finalAnswer}
                     </p>
                   </div>
                 )}

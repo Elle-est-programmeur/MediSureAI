@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useToast } from "../../context/ToastContext";
@@ -10,6 +10,8 @@ export default function CreateBilling() {
   const { addToast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [records, setRecords] = useState([]);
+  const [recordsLoading, setRecordsLoading] = useState(true);
 
   const [form, setForm] = useState({
     recordId: "",
@@ -17,20 +19,34 @@ export default function CreateBilling() {
     description: "",
   });
 
+  useEffect(() => {
+    loadRecords();
+  }, []);
+
+  async function loadRecords() {
+    try {
+      const data = await doctorAPI.getRecords();
+      setRecords(Array.isArray(data) ? data : []);
+    } catch (err) {
+      addToast(err.response?.data?.message || "Failed to load records", "error");
+    } finally {
+      setRecordsLoading(false);
+    }
+  }
+
   function formatCost(value) {
-    const num = value.replace(/[^0-9.]/g, "");
-    return num;
+    return value.replace(/[^0-9.]/g, "");
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.recordId.trim()) { addToast("Record ID is required", "warning"); return; }
+    if (!form.recordId) { addToast("Select a medical record", "warning"); return; }
     if (!form.totalCost || parseFloat(form.totalCost) <= 0) { addToast("Enter a valid cost", "warning"); return; }
 
     setSubmitting(true);
     try {
       await doctorAPI.createBilling({
-        recordId: form.recordId,
+        recordId: Number(form.recordId),
         totalCost: parseFloat(form.totalCost),
         description: form.description,
       });
@@ -44,6 +60,7 @@ export default function CreateBilling() {
     }
   }
 
+  const selectedRecord = records.find((r) => String(r.id) === String(form.recordId));
   const inputClass = "w-full bg-white/5 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition";
 
   return (
@@ -80,19 +97,39 @@ export default function CreateBilling() {
             onSubmit={handleSubmit}
             className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 space-y-5"
           >
-            {/* Record ID */}
+            {/* Record selector */}
             <div>
               <label className="block text-xs font-semibold tracking-[0.2em] uppercase text-cyan-400 mb-2" style={{ fontFamily: "Orbitron, sans-serif" }}>
-                Record ID
+                Medical Record
               </label>
-              <input
-                type="text"
-                value={form.recordId}
-                onChange={(e) => setForm((p) => ({ ...p, recordId: e.target.value }))}
-                placeholder="Enter medical record ID"
-                className={inputClass}
-                required
-              />
+              {recordsLoading ? (
+                <div className="flex items-center gap-2 text-slate-400 text-sm py-3"><LoadingSpinner size="sm" /> Loading your records…</div>
+              ) : records.length === 0 ? (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+                  No medical records yet — create one before billing.
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={form.recordId}
+                    onChange={(e) => setForm((p) => ({ ...p, recordId: e.target.value }))}
+                    className={inputClass}
+                    required
+                  >
+                    <option value="" className="bg-slate-900">Select a record…</option>
+                    {records.map((r) => (
+                      <option key={r.id} value={r.id} className="bg-slate-900">
+                        #{r.id} — {r.diagnosis || "Untitled"}{r.createdAt ? ` (${String(r.createdAt).slice(0, 10)})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedRecord && (
+                    <p className="mt-2 text-xs text-slate-400">
+                      Treatment: {selectedRecord.treatmentPlan || "—"}
+                    </p>
+                  )}
+                </>
+              )}
             </div>
 
             {/* Total Cost */}
@@ -130,7 +167,7 @@ export default function CreateBilling() {
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || recordsLoading || records.length === 0}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold hover:scale-[1.02] transition-transform shadow-lg shadow-cyan-500/25 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {submitting ? <><LoadingSpinner size="sm" /> Submitting...</> : "Create Billing Entry"}

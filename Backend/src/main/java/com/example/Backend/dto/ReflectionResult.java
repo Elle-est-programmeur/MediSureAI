@@ -18,7 +18,11 @@ public class ReflectionResult {
     private boolean isValid;
     private boolean factsCorrect;
     private boolean hasContradictions;
+    private boolean evidenceGrounded;
+    private boolean fabricatedExclusion;
+    private boolean unsupportedAssumption;
     private List<String> strengths;
     private List<String> weaknesses;
+    private List<String> unsupportedClaims;
     private String overallAssessment;
 }

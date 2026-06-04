@@ -139,6 +139,9 @@ public class PatientDataTool implements Tool {
                 .description(b.getDescription())
                 .createdAt(b.getCreatedAt())
                 .recordId(b.getRecord() != null ? b.getRecord().getId() : null)
+                .status(b.getStatus())
+                .paymentMethod(b.getPaymentMethod())
+                .paidAt(b.getPaidAt())
                 .build();
     }
 

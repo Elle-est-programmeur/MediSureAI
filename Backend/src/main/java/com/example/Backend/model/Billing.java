@@ -35,6 +35,16 @@ public class Billing {
 
     private String description;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16, columnDefinition = "varchar(16) default 'PENDING'")
+    @Builder.Default
+    private BillingStatus status = BillingStatus.PENDING;
+
+    @Column(length = 32)
+    private String paymentMethod;
+
+    private LocalDateTime paidAt;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;

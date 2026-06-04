@@ -2,31 +2,30 @@ package com.example.Backend.service;
 
 import com.example.Backend.dto.*;
 import com.example.Backend.model.Billing;
-import com.example.Backend.model.Document;
-import com.example.Backend.model.DocumentType;
+import com.example.Backend.model.BillingStatus;
 import com.example.Backend.model.Drug;
 import com.example.Backend.model.MedicalRecord;
 import com.example.Backend.model.Patient;
-import com.example.Backend.model.QueryIntent;
+import com.example.Backend.model.Receipt;
 import com.example.Backend.model.Users;
 import com.example.Backend.repository.BillingRepository;
 import com.example.Backend.repository.DocumentRepository;
 import com.example.Backend.repository.MedicalRecordRepository;
 import com.example.Backend.repository.PatientRepository;
+import com.example.Backend.repository.ReceiptRepository;
 import com.example.Backend.repository.UserCredRepo;
-import com.example.Backend.service.llm.LLMService;
-import com.example.Backend.service.srlm.MultiReasoningService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,60 +35,88 @@ public class PatientService {
 
     private final VectorStore vectorStore;
     private final DocumentRepository documentRepository;
-    private final LLMService llmService;
-    private final MultiReasoningService multiReasoningService;
+    private final GroqFormularyService groqFormularyService;
     private final PatientRepository patientRepository;
     private final MedicalRecordRepository medicalRecordRepository;
     private final BillingRepository billingRepository;
+    private final ReceiptRepository receiptRepository;
+    private final BillingPaymentService billingPaymentService;
     private final UserCredRepo userCredRepo;
 
     /**
-     * Feature 2: Health Timeline
+     * Feature 2: Health Timeline — unified view of uploaded documents, doctor-created
+     * medical records, and billing events for the patient.
      */
-    public List<DocumentMetadataDTO> getTimeline(Users user) {
-        return documentRepository.findByUser(user).stream()
-                .filter(doc -> doc.getEventDate() != null)
-                .sorted(Comparator.comparing(Document::getEventDate).reversed())
-                .map(this::toDTO)
-                .toList();
+    @Transactional(readOnly = true)
+    public List<TimelineEventDTO> getTimeline(Users user) {
+        Patient patient = patientRepository.findByUserId(user.getId()).orElse(null);
+
+        List<TimelineEventDTO> events = new ArrayList<>();
+
+        documentRepository.findByUser(user).stream()
+                .filter(doc -> doc.getEventDate() != null || doc.getUploadedAt() != null)
+                .forEach(doc -> events.add(TimelineEventDTO.builder()
+                        .id("DOC-" + doc.getId())
+                        .type("DOCUMENT")
+                        .title(doc.getOriginalFileName() != null ? doc.getOriginalFileName() : "Document")
+                        .details(doc.getDocumentType() != null ? doc.getDocumentType().name() : null)
+                        .date(doc.getEventDate() != null ? doc.getEventDate() : doc.getUploadedAt())
+                        .build()));
+
+        if (patient != null) {
+            medicalRecordRepository.findByPatientIdOrderByCreatedAtDesc(patient.getId())
+                    .forEach(rec -> {
+                        List<String> drugNames = rec.getDrugs() == null ? List.of()
+                                : rec.getDrugs().stream().map(Drug::getName).filter(n -> n != null && !n.isBlank()).toList();
+                        events.add(TimelineEventDTO.builder()
+                                .id("REC-" + rec.getId())
+                                .type("RECORD")
+                                .title(rec.getDiagnosis() != null ? rec.getDiagnosis() : "Medical record")
+                                .details(rec.getTreatmentPlan())
+                                .doctorName(rec.getDoctor() != null ? rec.getDoctor().getName() : null)
+                                .date(rec.getCreatedAt())
+                                .tags(drugNames)
+                                .build());
+                    });
+
+            billingRepository.findByPatientIdOrderByCreatedAtDesc(patient.getId())
+                    .forEach(b -> events.add(TimelineEventDTO.builder()
+                            .id("BIL-" + b.getId())
+                            .type("BILLING")
+                            .title("Billing: ₹" + b.getTotalCost())
+                            .details((b.getDescription() != null ? b.getDescription() : "Billing entry")
+                                    + " — " + (b.getStatus() != null ? b.getStatus().name() : "PENDING"))
+                            .date(b.getCreatedAt())
+                            .build()));
+        }
+
+        events.sort(Comparator.comparing(
+                TimelineEventDTO::getDate,
+                Comparator.nullsLast(Comparator.reverseOrder())));
+        return events;
     }
 
     /**
-     * Feature 4: Smart Formulary Search
+     * Feature 4: Smart Formulary Search — backed by Groq.
      */
     public SRLMResponse searchFormulary(String drugName, Users user) {
         log.info("Searching formulary for drug: {}", drugName);
 
-        List<org.springframework.ai.document.Document> policyDocs = vectorStore.similaritySearch(
-                SearchRequest.query(drugName)
-                        .withTopK(5)
-                        .withFilterExpression("documentType == 'INSURANCE_POLICY'")
-        );
+        String context = "";
+        try {
+            List<org.springframework.ai.document.Document> policyDocs = vectorStore.similaritySearch(
+                    SearchRequest.query(drugName)
+                            .withTopK(5)
+                            .withFilterExpression("documentType == 'INSURANCE_POLICY'")
+            );
+            context = policyDocs.stream()
+                    .map(org.springframework.ai.document.Document::getContent)
+                    .collect(Collectors.joining("\n"));
+        } catch (Exception e) {
+            log.warn("Vector store unavailable for policy lookup; continuing without context: {}", e.getMessage());
+        }
 
-        String context = policyDocs.stream().map(org.springframework.ai.document.Document::getContent).collect(Collectors.joining("\n"));
-
-        String prompt = String.format("""
-                [CRITICAL INSTRUCTION: USE PROVIDED CONTEXT ONLY]
-                You are a technical Medical Insurance Policy Auditor. Your task is to extract exact coverage details for the drug '%s' from the provided policy snippets.
-                
-                RULES:
-                1. Do NOT provide generic medical advice or "Bronze/Silver/Gold" tier guesses.
-                2. If the drug is not mentioned in the context, state "Drug not found in policy documents."
-                3. Use the exact wording from the text for co-pays and tiers.
-                4. Do NOT start with a medical advice disclaimer unless you are actually giving medical advice (which you should not do).
-                
-                DETERMINE:
-                - Coverage Status: Is it mentioned as covered?
-                - Cost Tier & Co-pay: (e.g., Tier 1, $10)
-                - Generic Alternatives: List any generics mentioned in the same section.
-                
-                CONTEXT FROM POLICY:
-                ---
-                %s
-                ---
-                """, drugName, context);
-
-        String answer = llmService.generateCompletion(prompt);
+        String answer = groqFormularyService.search(drugName, context);
 
         return SRLMResponse.builder()
                 .query("Drug search: " + drugName)
@@ -137,8 +164,35 @@ public class PatientService {
         Patient patient = getOrCreatePatient(userId);
         return billingRepository.findByPatientIdOrderByCreatedAtDesc(patient.getId())
                 .stream()
-                .map(this::toBillingResponse)
+                .map(b -> toBillingResponse(b, receiptRepository.findByBillingId(b.getId()).orElse(null)))
                 .toList();
+    }
+
+    /**
+     * Mock payment flow:
+     *   1. mark PROCESSING (commits)
+     *   2. mark PAID + create Receipt (commits)
+     * Each step is its own REQUIRES_NEW transaction so the DB genuinely transitions
+     * PENDING → PROCESSING → PAID. Idempotent if already paid.
+     */
+    public BillingResponse payBilling(Long userId, Long billingId, String paymentMethod) {
+        billingPaymentService.markProcessing(billingId, userId);
+        BillingPaymentService.PaymentResult result =
+                billingPaymentService.markPaidAndIssueReceipt(billingId, userId, paymentMethod);
+        return toBillingResponse(result.billing(), result.receipt());
+    }
+
+    @Transactional(readOnly = true)
+    public ReceiptDTO getReceipt(Long userId, Long billingId) {
+        Patient patient = getOrCreatePatient(userId);
+        Receipt receipt = receiptRepository.findByBillingId(billingId)
+                .orElseThrow(() -> new EntityNotFoundException("No receipt for billing: " + billingId));
+        Billing billing = receipt.getBilling();
+        if (billing == null || billing.getPatient() == null
+                || !patient.getId().equals(billing.getPatient().getId())) {
+            throw new AccessDeniedException("This receipt does not belong to you");
+        }
+        return toReceiptDTO(receipt);
     }
 
     /** Find the Patient row for this user, or create a stub one (with auto-assigned MRN). */
@@ -191,13 +245,36 @@ public class PatientService {
                 .build();
     }
 
-    private BillingResponse toBillingResponse(Billing b) {
+    private BillingResponse toBillingResponse(Billing b, Receipt receipt) {
+        MedicalRecord record = b.getRecord();
+        Patient patient = b.getPatient();
+        BillingStatus status = b.getStatus() == null ? BillingStatus.PENDING : b.getStatus();
         return BillingResponse.builder()
                 .id(b.getId())
                 .totalCost(b.getTotalCost())
                 .description(b.getDescription())
                 .createdAt(b.getCreatedAt())
-                .recordId(b.getRecord() != null ? b.getRecord().getId() : null)
+                .recordId(record != null ? record.getId() : null)
+                .recordDiagnosis(record != null ? record.getDiagnosis() : null)
+                .patientName(patient != null ? patient.getName() : null)
+                .status(status)
+                .paymentMethod(b.getPaymentMethod())
+                .paidAt(b.getPaidAt())
+                .receipt(receipt != null ? toReceiptDTO(receipt) : null)
+                .build();
+    }
+
+    private ReceiptDTO toReceiptDTO(Receipt r) {
+        return ReceiptDTO.builder()
+                .id(r.getId())
+                .billingId(r.getBilling() != null ? r.getBilling().getId() : null)
+                .receiptNumber(r.getReceiptNumber())
+                .transactionRef(r.getTransactionRef())
+                .paymentMethod(r.getPaymentMethod())
+                .amount(r.getAmount())
+                .patientName(r.getPatientName())
+                .description(r.getDescription())
+                .issuedAt(r.getIssuedAt())
                 .build();
     }
 
@@ -207,17 +284,6 @@ public class PatientService {
                 .name(d.getName())
                 .dosage(d.getDosage())
                 .purpose(d.getPurpose())
-                .build();
-    }
-
-    private DocumentMetadataDTO toDTO(Document document) {
-        return DocumentMetadataDTO.builder()
-                .id(document.getId())
-                .fileName(document.getOriginalFileName())
-                .documentType(document.getDocumentType())
-                .status(document.getStatus())
-                .eventDate(document.getEventDate())
-                .uploadedAt(document.getUploadedAt())
                 .build();
     }
 }

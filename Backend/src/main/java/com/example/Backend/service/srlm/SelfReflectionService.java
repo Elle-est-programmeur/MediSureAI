@@ -63,23 +63,46 @@ public class SelfReflectionService {
 
     private String buildReflectionPrompt(String query, String context, ReasoningCandidate candidate) {
         return String.format("""
-                You are a critical reviewer evaluating an AI-generated answer about healthcare insurance.
+                You are an adversarial reviewer of an AI answer about a healthcare insurance
+                policy. Your job is to catch hallucinations, contradictions, and fabricated
+                exclusions before the answer reaches a patient.
 
                 ORIGINAL QUESTION: %s
 
-                REFERENCE CONTEXT:
+                EVIDENCE CLAUSES (the only source of truth):
                 %s
 
-                CANDIDATE ANSWER (reasoning approach: %s):
+                CANDIDATE ANSWER (reasoning path: %s):
                 %s
 
-                Critically evaluate this answer. Respond ONLY with valid JSON (no markdown):
+                Answer the following questions and respond ONLY with valid JSON (no markdown):
+
+                1. isValid             — is the answer well-formed and on-topic?
+                2. factsCorrect        — are every concrete fact (limits, percentages, terms)
+                                          present in the evidence?
+                3. hasContradictions   — does any sentence contradict any clause? e.g. clause
+                                          says "ICU: covered up to sum insured" but the answer
+                                          says ICU is not covered.
+                4. evidenceGrounded    — is EVERY factual claim traceable to a clause? An
+                                          answer with sentences not grounded in the evidence
+                                          fails this check.
+                5. fabricatedExclusion — does the answer claim something is excluded / not
+                                          covered / not payable WITHOUT a clause that says so?
+                6. unsupportedAssumption — does the reasoning import logic from an unrelated
+                                          section (e.g. applying daycare rules to ICU)?
+                7. unsupportedClaims   — list specific sentences from the answer that are NOT
+                                          supported by the evidence. Empty list if all good.
+
                 {
-                  "isValid": true/false,
-                  "factsCorrect": true/false,
-                  "hasContradictions": true/false,
-                  "strengths": ["strength1", "strength2"],
-                  "weaknesses": ["weakness1", "weakness2"],
+                  "isValid": true,
+                  "factsCorrect": true,
+                  "hasContradictions": false,
+                  "evidenceGrounded": true,
+                  "fabricatedExclusion": false,
+                  "unsupportedAssumption": false,
+                  "strengths": ["..."],
+                  "weaknesses": ["..."],
+                  "unsupportedClaims": ["..."],
                   "overallAssessment": "one sentence summary"
                 }
                 """,
@@ -95,8 +118,12 @@ public class SelfReflectionService {
                     .isValid(node.path("isValid").asBoolean(true))
                     .factsCorrect(node.path("factsCorrect").asBoolean(true))
                     .hasContradictions(node.path("hasContradictions").asBoolean(false))
+                    .evidenceGrounded(node.path("evidenceGrounded").asBoolean(true))
+                    .fabricatedExclusion(node.path("fabricatedExclusion").asBoolean(false))
+                    .unsupportedAssumption(node.path("unsupportedAssumption").asBoolean(false))
                     .strengths(parseStringList(node.path("strengths")))
                     .weaknesses(parseStringList(node.path("weaknesses")))
+                    .unsupportedClaims(parseStringList(node.path("unsupportedClaims")))
                     .overallAssessment(node.path("overallAssessment").asText(""))
                     .build();
         } catch (Exception e) {
@@ -119,8 +146,12 @@ public class SelfReflectionService {
                 .isValid(true)
                 .factsCorrect(true)
                 .hasContradictions(false)
+                .evidenceGrounded(true)
+                .fabricatedExclusion(false)
+                .unsupportedAssumption(false)
                 .strengths(List.of("Answer provided"))
                 .weaknesses(List.of())
+                .unsupportedClaims(List.of())
                 .overallAssessment("Reflection not performed")
                 .build();
     }

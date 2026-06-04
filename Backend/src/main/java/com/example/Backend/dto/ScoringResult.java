@@ -16,6 +16,10 @@ public class ScoringResult {
     private double relevanceScore;
     private double correctnessScore;
     private double completenessScore;
+    private double evidenceConsistencyScore;
+    private double contradictionPenalty;
     private double overallScore;
     private String scoringReasoning;
+    private boolean rejected;
+    private String rejectionReason;
 }

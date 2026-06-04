@@ -1,5 +1,6 @@
 package com.example.Backend.dto;
 
+import com.example.Backend.model.BillingStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,4 +19,10 @@ public class BillingResponse {
     private String description;
     private LocalDateTime createdAt;
     private Long recordId;
+    private String recordDiagnosis;
+    private String patientName;
+    private BillingStatus status;
+    private String paymentMethod;
+    private LocalDateTime paidAt;
+    private ReceiptDTO receipt;
 }

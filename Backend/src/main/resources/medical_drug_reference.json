@@ -1,0 +1,195 @@
+[
+  {
+    "drugName": "Paracetamol",
+    "aliases": ["Acetaminophen", "Dolo", "Dolo 650", "Crocin", "Calpol", "Paracip", "Pacimol"],
+    "drugClass": "Analgesic / Antipyretic",
+    "uses": [
+      "Reduces fever",
+      "Relieves mild to moderate pain such as headache, toothache, body ache, and muscle pain"
+    ],
+    "commonSideEffects": [
+      "Nausea",
+      "Stomach discomfort",
+      "Allergic skin rash (uncommon)"
+    ],
+    "seriousWarnings": [
+      "Doses higher than recommended can damage the liver",
+      "Avoid combining with other paracetamol-containing products"
+    ],
+    "contraindications": [
+      "Known hypersensitivity to paracetamol",
+      "Severe liver impairment"
+    ],
+    "commonInteractions": [
+      "Warfarin: occasional use is usually safe; regular high-dose use may increase bleeding risk"
+    ],
+    "patientFriendlyExplanation": "Paracetamol is one of the most commonly used medicines to bring down fever and ease mild pain. It is safe at the dose your doctor recommends.",
+    "evidenceSource": "WHO Essential Medicines List; product information leaflets"
+  },
+  {
+    "drugName": "Cetirizine",
+    "aliases": ["Zyrtec", "Cetrizine", "Cetcip", "Alerid", "Okacet"],
+    "drugClass": "Second-generation antihistamine",
+    "uses": [
+      "Relieves symptoms of allergic rhinitis (sneezing, runny nose, itchy eyes)",
+      "Relieves itching from chronic urticaria (hives)",
+      "Helps with cold-related allergy symptoms"
+    ],
+    "commonSideEffects": [
+      "Drowsiness",
+      "Dry mouth",
+      "Mild fatigue",
+      "Headache"
+    ],
+    "seriousWarnings": [
+      "Avoid driving or operating machinery if drowsiness occurs",
+      "Use with caution in patients with kidney impairment — dose may need adjustment"
+    ],
+    "contraindications": [
+      "Known hypersensitivity to cetirizine or hydroxyzine",
+      "Severe renal impairment without dose adjustment"
+    ],
+    "commonInteractions": [
+      "Alcohol or other sedatives may increase drowsiness"
+    ],
+    "patientFriendlyExplanation": "Cetirizine helps relieve allergy symptoms like a runny nose, sneezing, watery eyes, and itching. The most common side effect is mild drowsiness.",
+    "evidenceSource": "Product information leaflets; standard pharmacology references"
+  },
+  {
+    "drugName": "ORS",
+    "aliases": ["Oral Rehydration Salts", "Oral Rehydration Solution", "Electral", "WHO ORS"],
+    "drugClass": "Electrolyte / rehydration therapy",
+    "uses": [
+      "Replaces fluid and electrolytes lost due to diarrhoea, vomiting, or excessive sweating",
+      "Prevents and treats dehydration"
+    ],
+    "commonSideEffects": [
+      "Mild nausea when taken too fast"
+    ],
+    "seriousWarnings": [
+      "Use cautiously in patients with kidney disease or severe heart failure",
+      "Do not use as a substitute for IV fluids in severe dehydration"
+    ],
+    "contraindications": [
+      "Intestinal obstruction",
+      "Persistent vomiting that prevents oral intake"
+    ],
+    "commonInteractions": [
+      "No major drug interactions when used as directed"
+    ],
+    "patientFriendlyExplanation": "ORS replaces the water and salts your body loses during diarrhoea or vomiting and is the first-line treatment to prevent dehydration.",
+    "evidenceSource": "WHO Treatment Guidelines"
+  },
+  {
+    "drugName": "Amoxicillin",
+    "aliases": ["Mox", "Amoxil", "Novamox", "Amox"],
+    "drugClass": "Penicillin-class antibiotic",
+    "uses": [
+      "Treats bacterial infections of the ear, nose, throat, urinary tract, skin, and chest",
+      "Used in some dental infections"
+    ],
+    "commonSideEffects": [
+      "Diarrhoea",
+      "Nausea",
+      "Skin rash",
+      "Mild stomach upset"
+    ],
+    "seriousWarnings": [
+      "Stop and seek medical help if you develop hives, swelling of the face, or difficulty breathing — these can indicate a serious allergic reaction",
+      "Complete the full prescribed course even if you feel better"
+    ],
+    "contraindications": [
+      "Known penicillin allergy"
+    ],
+    "commonInteractions": [
+      "May reduce the effectiveness of oral contraceptive pills"
+    ],
+    "patientFriendlyExplanation": "Amoxicillin is a common antibiotic used to treat bacterial infections. It does not work against viruses such as the common cold or flu.",
+    "evidenceSource": "WHO Essential Medicines List; product leaflets"
+  },
+  {
+    "drugName": "Azithromycin",
+    "aliases": ["Azee", "Azax", "Zithromax", "Azithral"],
+    "drugClass": "Macrolide antibiotic",
+    "uses": [
+      "Treats certain bacterial infections of the chest, throat, sinuses, skin, and some sexually transmitted infections"
+    ],
+    "commonSideEffects": [
+      "Diarrhoea",
+      "Nausea",
+      "Abdominal pain",
+      "Headache"
+    ],
+    "seriousWarnings": [
+      "May affect heart rhythm in patients with existing heart-rhythm disorders — inform your doctor of any cardiac history",
+      "Complete the full prescribed course"
+    ],
+    "contraindications": [
+      "Known hypersensitivity to macrolide antibiotics",
+      "History of cholestatic jaundice with azithromycin"
+    ],
+    "commonInteractions": [
+      "May interact with certain heart medicines and antacids — check with your doctor or pharmacist"
+    ],
+    "patientFriendlyExplanation": "Azithromycin is an antibiotic that treats certain bacterial infections. It is usually taken once a day for a short course.",
+    "evidenceSource": "Product leaflets; standard antibiotic guidelines"
+  },
+  {
+    "drugName": "Pantoprazole",
+    "aliases": ["Pantop", "Pan", "Pantocid", "Protonix"],
+    "drugClass": "Proton pump inhibitor (PPI)",
+    "uses": [
+      "Reduces stomach acid",
+      "Treats acid reflux (GERD), gastritis, and stomach/duodenal ulcers"
+    ],
+    "commonSideEffects": [
+      "Headache",
+      "Diarrhoea",
+      "Nausea",
+      "Stomach pain"
+    ],
+    "seriousWarnings": [
+      "Long-term use may be associated with low magnesium and vitamin B12 levels — discuss with your doctor if used beyond 3 months"
+    ],
+    "contraindications": [
+      "Known hypersensitivity to pantoprazole or other PPIs"
+    ],
+    "commonInteractions": [
+      "May reduce the absorption of medicines that need stomach acid, such as certain antifungals"
+    ],
+    "patientFriendlyExplanation": "Pantoprazole reduces the amount of acid your stomach makes, easing heartburn, reflux, and ulcer symptoms.",
+    "evidenceSource": "Product leaflets; gastroenterology guidelines"
+  },
+  {
+    "drugName": "Ibuprofen",
+    "aliases": ["Brufen", "Advil", "Combiflam (combination with paracetamol)"],
+    "drugClass": "Non-steroidal anti-inflammatory drug (NSAID)",
+    "uses": [
+      "Relieves mild to moderate pain",
+      "Reduces fever",
+      "Reduces inflammation in conditions such as arthritis, muscle injury, and menstrual pain"
+    ],
+    "commonSideEffects": [
+      "Stomach upset",
+      "Heartburn",
+      "Nausea"
+    ],
+    "seriousWarnings": [
+      "Can cause stomach ulcers or bleeding, especially with prolonged use",
+      "May affect kidney function in patients who are dehydrated or have existing kidney disease",
+      "Use with caution in patients with high blood pressure or heart disease"
+    ],
+    "contraindications": [
+      "Active stomach ulcer or bleeding",
+      "Severe kidney impairment",
+      "Third trimester of pregnancy",
+      "Known NSAID allergy"
+    ],
+    "commonInteractions": [
+      "May increase the effect of blood-thinning medicines",
+      "May reduce the effect of some blood-pressure medicines"
+    ],
+    "patientFriendlyExplanation": "Ibuprofen is a common pain and fever medicine that also reduces inflammation. Take it with food to reduce stomach upset.",
+    "evidenceSource": "WHO Essential Medicines List; NSAID prescribing guidelines"
+  }
+]

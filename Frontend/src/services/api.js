@@ -136,8 +136,18 @@ export const doctorAPI = {
     return response.data;
   },
 
+  getPatientHistory: async (userId) => {
+    const response = await api.get(`/doctor/patients/${userId}/records`);
+    return response.data;
+  },
+
   createRecord: async (data) => {
     const response = await api.post('/doctor/records', data);
+    return response.data;
+  },
+
+  getRecords: async () => {
+    const response = await api.get('/doctor/records');
     return response.data;
   },
 
@@ -158,6 +168,11 @@ export const doctorAPI = {
 
   createBilling: async (data) => {
     const response = await api.post('/doctor/billing', data);
+    return response.data;
+  },
+
+  getBilling: async () => {
+    const response = await api.get('/doctor/billing');
     return response.data;
   },
 };
@@ -183,6 +198,16 @@ export const patientAPI = {
 
   getBilling: async () => {
     const response = await api.get('/patient/billing');
+    return response.data;
+  },
+
+  payBilling: async (id, paymentMethod) => {
+    const response = await api.post(`/patient/billing/${id}/pay`, { paymentMethod });
+    return response.data;
+  },
+
+  getReceipt: async (id) => {
+    const response = await api.get(`/patient/billing/${id}/receipt`);
     return response.data;
   },
 
