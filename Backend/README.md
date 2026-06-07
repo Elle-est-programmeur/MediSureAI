@@ -1,474 +1,219 @@
-# 🏥 MediSureAI Backend
+# 🏥 MediSureAI — Backend
 
-AI-Powered Healthcare & Insurance Decision Support Platform - Spring Boot Backend
-
-## 📋 Project Overview
-
-MediSureAI is an Agentic RAG-based platform that provides intelligent decision support for healthcare and insurance workflows. The backend is built with Spring Boot and integrates:
-
-- **Agentic AI Architecture**: Multi-tool orchestration for intelligent decision-making
-- **RAG Pipeline**: Retrieval-Augmented Generation with vector search
-- **Clinical Decision Support**: Treatment validation against medical guidelines
-- **Insurance Claim Validation**: Automated claim processing with explainable AI
-- **Role-Based Access**: Separate interfaces for Patients, Doctors, and Admins
+Spring Boot backend for MediSureAI: an agentic, self-reflective RAG platform for healthcare &
+insurance decision support. It exposes a JWT-secured REST API over a hybrid LLM stack
+(local Ollama + cloud Groq) with a multi-stage SRLM reasoning pipeline.
 
 ## 🛠️ Tech Stack
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| **Java** | 21 | Programming Language |
-| **Spring Boot** | 4.0.3 | Application Framework |
-| **PostgreSQL** | 16 | Relational Database |
-| **pgvector** | pg16 | Vector Search Extension |
-| **Ollama** | Latest | Local LLM Runtime |
-| **Maven** | 3.9+ | Build Tool |
-| **Docker** | Latest | Containerization |
-| **Spring Security** | 6.x | Authentication & Authorization |
-| **Spring Data JPA** | 3.x | ORM & Database Access |
-| **Lombok** | Latest | Code Generation |
+| Java | 21 | Language |
+| Spring Boot | 3.4.3 | Application framework |
+| Spring AI | 1.0.0-M4 | LLM / vector-store integration |
+| Spring Security | 6.x | JWT auth + method-level RBAC |
+| PostgreSQL + pgvector | pg16 | Vector embeddings (HNSW, cosine) |
+| PostgreSQL | pg16 | Structured data (users, records, billing…) |
+| MongoDB | latest | Document full text + chunks |
+| RabbitMQ | 3 | Async document processing |
+| Ollama | latest | Local LLM (`llama3.2:1b`) + embeddings (`nomic-embed-text`) |
+| Groq | — | Cloud critique / drug formulary (`llama-3.3-70b-versatile`, OpenAI-compatible) |
+| Apache Tika / POI | 2.9.1 / 5.2.5 | PDF & DOCX text extraction |
+| Maven | 3.9+ | Build |
 
-## ⚡ Quick Start (Docker)
+## ⚡ Quick Start
 
 ### Prerequisites
+- Java 21, Maven 3.9+ (or use the bundled `./mvnw`)
+- Docker & Docker Compose (for data services)
+- Ollama with the required models pulled
 
-- **Docker** 20.10+ and **Docker Compose** 2.0+
-- **Java JDK** 21
-- **Maven** 3.8+
+### 1. Start data services
 
-### 1. Start Infrastructure Services
-
-Start PostgreSQL with pgvector and Ollama:
+From the repository root:
 
 ```bash
-# Navigate to Backend directory
+docker compose up -d pgvector medsureai-db mongodb rabbitmq ollama
+```
+
+| Service | Host port | Notes |
+|---------|-----------|-------|
+| `pgvector` | 5432 | Embeddings store (`vectordb`) |
+| `medsureai-db` | 5433 | Structured data (`medsureai`) |
+| `mongodb` | 27017 | Document text & chunks |
+| `rabbitmq` | 5672 / 15672 | Broker / management UI |
+| `ollama` | 11434 | Local LLM runtime |
+
+Pull the local models:
+
+```bash
+docker exec -it ollama ollama pull llama3.2:1b
+docker exec -it ollama ollama pull nomic-embed-text
+```
+
+### 2. Configure secrets
+
+`application.properties` reads secrets from environment variables (or an optional
+`Backend/.env` properties file — git-ignored). Set:
+
+```properties
+JWT_SECRET_KEY=<base64-encoded 256-bit secret>
+DB_USERNAME=postgres
+DB_PASSWORD=<password for medsureai-db>
+OPENAI_API_KEY=<groq-api-key>          # Spring AI OpenAI client points at Groq
+GROQ_FORMULARY_API_KEY=<groq-api-key>  # drug formulary REST calls
+```
+
+> The OpenAI-compatible client is intentionally pointed at `https://api.groq.com/openai`.
+> Local embeddings run on Ollama (`nomic-embed-text`, 768 dims), so no paid embedding calls
+> are made by default.
+
+### 3. Run
+
+```bash
 cd Backend
-
-# Start services in detached mode
-docker compose up -d
-
-# Check service health
-docker compose ps
-
-# View logs
-docker compose logs -f
+./mvnw spring-boot:run        # Linux/macOS
+mvnw.cmd spring-boot:run      # Windows
 ```
 
-**Services Started:**
-- PostgreSQL with pgvector → `localhost:5432`
-- Ollama (LLM) → `localhost:11434`
-
-### 2. Pull Ollama Model
-
-```bash
-# Pull the required LLM model
-docker exec -it ollama ollama pull llama3:8b
-
-# Verify model is available
-docker exec -it ollama ollama list
-```
-
-### 3. Run the Backend Application
-
-```bash
-# Build and run with Maven
-mvn clean install -DskipTests
-mvn spring-boot:run
-
-# OR using JAR
-mvn package -DskipTests
-java -jar target/Backend-0.0.1-SNAPSHOT.jar
-```
-
-### 4. Verify Backend is Running
-
-```bash
-# Health check
-curl http://localhost:8080/actuator/health
-
-# Expected: {"status":"UP"}
-```
-
-✅ **Backend is now running on** `http://localhost:8080`
-
----
-
-## 🔧 Local Development Setup
-
-### Step 1: Install Prerequisites
-
-**Required Software:**
-```bash
-# Verify installations
-java -version        # Should show Java 21
-mvn -version        # Should show Maven 3.8+
-docker --version    # Should show Docker 20.10+
-psql --version      # Should show PostgreSQL client
-```
-
-### Step 2: Configure Environment Variables
-
-Create `.env` file in the `Backend/` directory (optional, defaults are set in application.properties):
-
-```bash
-# Database Configuration
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=vectordb
-POSTGRES_USER=testuser
-POSTGRES_PASSWORD=testpwd
-
-# Ollama Configuration
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3:8b
-
-# JWT Configuration (change in production!)
-JWT_SECRET=your-256-bit-secret-key-change-this-in-production
-JWT_EXPIRATION=900000
-JWT_REFRESH_EXPIRATION=86400000
-
-# Server Configuration
-SERVER_PORT=8080
-```
-
-### Step 3: Install Dependencies
-
-```bash
-mvn clean install -DskipTests
-```
-
-This will:
-- Download all Maven dependencies
-- Compile Java source files
-- Create the application JAR
-
-### Step 4: Database Initialization
-
-The database schema is automatically created by Spring Boot JPA on first run. Tables are generated from entity classes.
-
-**Optional**: Create initial admin user (SQL script):
-
-```sql
--- Connect to PostgreSQL
-docker exec -it pgvector psql -U testuser -d vectordb
-
--- Create admin user
-INSERT INTO users (id, name, email, password_hash, role, created_at)
-VALUES (
-  gen_random_uuid(),
-  'Admin User',
-  'admin@medisure.ai',
-  '$2a$10$encrypted_password_here',
-  'ADMIN',
-  NOW()
-);
-```
-
-### Step 5: Run Application
-
-**Maven Spring Boot Plugin:**
-```bash
-mvn spring-boot:run
-```
-
-**Java JAR:**
-```bash
-java -jar target/Backend-0.0.1-SNAPSHOT.jar
-```
-
-**With Hot Reload (DevTools):**
-```bash
-mvn spring-boot:run -Dspring-boot.run.fork=false
-```
-
----
+The API starts on `http://localhost:8080`. Tables are auto-created by Hibernate
+(`ddl-auto=update`).
 
 ## 📁 Project Structure
 
 ```
-Backend/
-├── src/main/java/com/example/Backend/
-│   ├── BackendApplication.java          # Main application entry point
-│   ├── config/                          # Configuration classes
-│   │   ├── SecurityConfig.java          # Spring Security setup
-│   │   ├── JwtConfig.java              # JWT authentication
-│   │   └── CorsConfig.java             # CORS configuration
-│   ├── modules/
-│   │   ├── auth/                        # Authentication module
-│   │   │   ├── controller/
-│   │   │   ├── service/
-│   │   │   ├── repository/
-│   │   │   ├── model/
-│   │   │   └── dto/
-│   │   ├── claim/                       # Insurance claim module
-│   │   ├── treatment/                   # Treatment validation module
-│   │   ├── policy/                      # Policy management module
-│   │   └── decision/                    # AI decision engine module
-│   ├── rag/                             # RAG pipeline components
-│   │   ├── OllamaService.java          # LLM integration
-│   │   ├── VectorSearchService.java    # pgvector search
-│   │   └── EmbeddingService.java       # Text embeddings
-│   └── utils/                           # Utility classes
-├── src/main/resources/
-│   ├── application.properties           # Application configuration
-│   ├── static/                          # Static resources
-│   └── templates/                       # Email/document templates
-├── src/test/java/                       # Unit and integration tests
-├── compose.yml                          # Docker Compose configuration
-├── pom.xml                              # Maven dependencies
-└── README.md                            # This file
+Backend/src/main/java/com/example/Backend/
+├── BackendApplication.java
+├── config/            # Security, JWT filter, CORS, Mongo, RabbitMQ, vector store, model, retry
+├── controller/        # Auth, Chat, Document, Query, SRLMQuery, Search, Doctor, Patient
+├── dto/               # Request/response payloads (auth, query, srlm, billing, records…)
+├── model/             # JPA entities & enums (Users, Doctor, Patient, Billing, Drug, Role…)
+├── repository/        # Spring Data JPA + Mongo repositories
+├── document/          # Mongo documents (DocumentContent, DocumentChunk)
+├── vector/            # Vector index & search result types
+├── exception/         # Custom exceptions + GlobalExceptionHandler
+├── security/jwt/      # JwtAuthenticationEntryPoint
+└── service/
+    ├── agent/         # AgentOrchestrator, IntentDetection, TaskPlanning, ToolExecutor
+    ├── srlm/          # Multi-path reasoning, reflection, scoring, synthesis, retrieval, rerank
+    ├── rag/           # ContextBuilderService
+    ├── document/      # Chunking, processing, storage, text extraction
+    ├── embedding/     # Embedding generation & service
+    ├── vector/        # Semantic search & vector store
+    ├── llm/           # LLMService, CritiqueLLMService, PromptTemplateService
+    ├── medical/       # Drug knowledge & response safety
+    ├── tools/         # Tool abstraction + VectorSearch/Metadata/DrugKnowledge/PatientData tools
+    ├── confidence/    # Confidence calibration
+    ├── safety/        # Guardrails
+    ├── memory/        # Session memory
+    └── messaging/     # RabbitMQ producer/consumer
 ```
 
----
+## 🔌 API Reference
 
-## 🌐 API Documentation
+Base URL: `http://localhost:8080`. Public endpoints are `/auth/register`, `/auth/login`,
+`/auth/refresh`. All other endpoints require `Authorization: Bearer <accessToken>`.
 
-### Base URL
+### Auth — `/auth`
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/register` | Register a user |
+| POST | `/login` | Login, returns access + refresh tokens |
+| POST | `/refresh` | Rotate refresh token, get new access token |
+| POST | `/logout` | Invalidate refresh token |
+
+### Documents — `/api/documents`
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/upload` | Upload PDF/DOCX (`multipart/form-data`: `files`, `documentType`); processed asynchronously |
+| GET | `/` | List the caller's documents |
+| GET | `/{id}` | Document metadata |
+| DELETE | `/{id}` | Delete a document |
+| DELETE | `/clear` | Clear the caller's documents |
+
+### Reasoning
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/query` | Agentic RAG query (intent → plan → tools → LLM) |
+| POST | `/api/query/debug` | Same, with full execution trace |
+| POST | `/api/srlm` | Self-reflective multi-path reasoning |
+| POST | `/api/srlm/debug` | Same, with full trace |
+| POST | `/api/chat/ask` | Simple RAG chat |
+
+### Search — `/api/search`
+| Method | Path | Role | Description |
+|--------|------|------|-------------|
+| POST | `/embeddings/generate` | Bearer | Generate embeddings |
+| GET | `/index/stats` | ADMIN | Vector index statistics |
+| DELETE | `/index/clear` | ADMIN | Clear the vector index |
+
+### Doctor — `/api/doctor` (`hasRole('DOCTOR')`)
+`POST/GET /profile` · `GET /patients` · `GET /patients/lookup` ·
+`GET /patients/{userId}/records` · `POST/GET /records` · `GET/PUT/DELETE /records/{id}` ·
+`POST/GET /billing`
+
+### Patient — `/api/patient` (`hasRole('PATIENT')`)
+`GET /timeline` · `GET /formulary-search` · `GET/POST /profile` · `GET /records` ·
+`GET /billing` · `POST /billing/{id}/pay` · `GET /billing/{id}/receipt` · `POST /chat`
+
+## ⚙️ Key Configuration (`application.properties`)
+
+```properties
+# JWT
+jwt.access.expiration=3600000        # access token (ms)
+jwt.refresh.expiration=604800000     # refresh token (7 days)
+
+# Hybrid LLM — Groq cloud critique (OpenAI-compatible)
+spring.ai.openai.base-url=https://api.groq.com/openai
+spring.ai.openai.chat.options.model=llama-3.3-70b-versatile
+spring.ai.openai.embedding.enabled=false
+
+# Hybrid LLM — local Ollama foundation + embeddings
+spring.ai.ollama.chat.options.model=llama3.2:1b
+spring.ai.ollama.embedding.options.model=nomic-embed-text
+
+# Vector store (pgvector, 768 dims to match nomic-embed-text)
+spring.ai.vectorstore.pgvector.dimensions=768
+spring.ai.vectorstore.pgvector.distance-type=COSINE_DISTANCE
+spring.ai.vectorstore.pgvector.index-type=HNSW
+
+# SRLM pipeline
+srlm.reasoning.paths=2
+srlm.reasoning.temperature=0.7
+srlm.reflection.enabled=true
+srlm.scoring.min-confidence=6.0
+srlm.synthesis.enabled=true
+
+# Evidence-grounded retrieval
+srlm.retrieval.embedding-weight=0.7
+srlm.retrieval.keyword-weight=0.3
+srlm.retrieval.default-topk=8
+srlm.validation.min-final-score=0.45
+
+# Safety & memory
+srlm.feedback.enabled=true
+safety.min-confidence=4.0
+session.memory.max-queries=10
 ```
-Development: http://localhost:8080/api/v1
-```
-
-### Authentication
-
-All API requests require JWT authentication except for login/registration.
-
-**Login:**
-```bash
-POST /api/v1/auth/login
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "Password123"
-}
-
-Response:
-{
-  "token": "eyJhbGciOiJSUzI1NiIs...",
-  "refreshToken": "...",
-  "user": {
-    "id": "uuid",
-    "name": "John Doe",
-    "email": "user@example.com",
-    "role": "PATIENT"
-  }
-}
-```
-
-**Authenticated Request:**
-```bash
-GET /api/v1/claims/patient/{userId}
-Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
-```
-
-### Key Endpoints
-
-| Endpoint | Method | Description | Role |
-|----------|--------|-------------|------|
-| `/api/v1/auth/login` | POST | User login | Public |
-| `/api/v1/auth/register` | POST | User registration | Public |
-| `/api/v1/claims/submit` | POST | Submit insurance claim | Patient |
-| `/api/v1/claims/patient/{id}` | GET | Get patient claims | Patient |
-| `/api/v1/treatment/validate` | POST | Validate treatment plan | Doctor |
-| `/api/v1/policy/analyze` | POST | Analyze policy coverage | Patient |
-| `/api/v1/decision/explain` | POST | Get AI decision explanation | All |
-
-See full API documentation in [docs/api/api-reference.md](../docs/api/api-reference.md)
-
----
 
 ## 🧪 Testing
 
-### Run All Tests
 ```bash
-mvn test
+./mvnw test
 ```
 
-### Run Specific Test Class
+Unit tests live under `src/test/java/com/example/Backend` and cover the SRLM services
+(`ConstraintReasoning`, `ContradictionDetection`, `FinancialCalculationValidator`,
+`PolicyClauseClassifier`, `RetrievalReranker`, `ContextValidation`, `InsuranceKeywords`)
+and the medical services (`DrugKnowledgeService`, `MedicalResponseSafetyService`).
+
+## 🐳 Docker
+
+A `Dockerfile` is provided, and the root `docker-compose.yml` wires the backend together with
+all data services. To build & run everything:
+
 ```bash
-mvn test -Dtest=BackendApplicationTests
+docker compose up --build
 ```
 
-### Run with Coverage
-```bash
-mvn clean test jacoco:report
-```
-
-Coverage report will be available at `target/site/jacoco/index.html`
-
----
-
-## 🐳 Docker Commands
-
-### Start Services
-```bash
-docker compose up -d
-```
-
-### Stop Services
-```bash
-docker compose down
-```
-
-### View Logs
-```bash
-# All services
-docker compose logs -f
-
-# Specific service
-docker compose logs -f pgvector
-docker compose logs -f ollama
-```
-
-### Restart Single Service
-```bash
-docker compose restart pgvector
-```
-
-### Remove Volumes (Clean Start)
-```bash
-docker compose down -v
-```
-
-### Database Access
-```bash
-# Connect to PostgreSQL
-docker exec -it pgvector psql -U testuser -d vectordb
-
-# Ollama CLI
-docker exec -it ollama ollama list
-docker exec -it ollama ollama pull llama3:8b
-```
-
----
-
-## 🔍 Troubleshooting
-
-### Issue: Port 5432 Already in Use
-```bash
-# Find process using port
-netstat -ano | findstr :5432
-
-# Option 1: Kill the process
-taskkill /PID <process_id> /F
-
-# Option 2: Change port in compose.yml
-ports:
-  - "5433:5432"  # Use 5433 on host
-```
-
-### Issue: Application Cannot Connect to Database
-```bash
-# Check if PostgreSQL is running
-docker compose ps
-
-# Check database logs
-docker compose logs pgvector
-
-# Verify connection manually
-docker exec -it pgvector psql -U testuser -d vectordb
-```
-
-### Issue: Ollama Model Not Found
-```bash
-# Pull the model
-docker exec -it ollama ollama pull llama3:8b
-
-# List available models
-docker exec -it ollama ollama list
-```
-
-### Issue: Maven Build Fails
-```bash
-# Clean and rebuild
-mvn clean install -U -DskipTests
-
-# Clear local Maven cache if needed
-rmdir /s %USERPROFILE%\.m2\repository\com\example
-```
-
-### Issue: Out of Memory
-```bash
-# Increase Docker memory limit (Docker Desktop → Settings → Resources)
-# OR add environment variable
-set MAVEN_OPTS=-Xmx2048m -XX:MaxPermSize=512m
-mvn spring-boot:run
-```
-
----
-
-## 📊 Database Schema
-
-The application uses Spring Data JPA to auto-generate tables. Key entities:
-
-- **users**: User accounts (Patient, Doctor, Admin)
-- **claims**: Insurance claims
-- **treatments**: Treatment plans
-- **policies**: Insurance policies
-- **decisions**: AI decision records
-- **embeddings**: Vector embeddings for RAG
-
-To view schema:
-```sql
-docker exec -it pgvector psql -U testuser -d vectordb
-\dt  -- List tables
-\d users  -- Describe users table
-```
-
----
-
-## 🚀 Deployment
-
-### Production Build
-```bash
-mvn clean package -Pprod
-```
-
-### Run Production JAR
-```bash
-java -jar -Dspring.profiles.active=prod target/Backend-0.0.1-SNAPSHOT.jar
-```
-
-### Environment Variables for Production
-```bash
-# Set production environment variables
-export SPRING_PROFILES_ACTIVE=prod
-export POSTGRES_HOST=your-prod-db-host
-export JWT_SECRET=your-secure-256-bit-secret
-export OLLAMA_BASE_URL=https://your-ollama-endpoint
-```
-
----
-
-## 📚 Additional Documentation
-
-- [System Architecture](../docs/architecture/system-architecture.md)
-- [Backend Modules](../docs/modules/backend-modules.md)
-- [RAG Pipeline](../docs/architecture/rag-pipeline.md)
-- [API Reference](../docs/api/api-reference.md)
-- [Testing Strategy](../docs/testing/testing-strategy.md)
-- [Development Setup](../docs/setup/dev-setup.md)
-
----
-
-## 🤝 Contributing
-
-1. Create a feature branch: `git checkout -b feature/your-feature`
-2. Make changes and test thoroughly
-3. Commit with clear messages: `git commit -m "Add: feature description"`
-4. Push and create pull request
-
----
-
-## 📝 License
-
-MediSureAI Backend - Spring Boot Application  
-Version: 0.0.1-SNAPSHOT
-
----
-
-## 💡 Support
-
-For issues or questions:
-- Check [Troubleshooting](#-troubleshooting) section
-- Review [Documentation](../docs/)
-- Contact: dev@medisure.ai
+For the JWT flow walkthrough, see [`AUTHENTICATION_TEST_GUIDE.md`](AUTHENTICATION_TEST_GUIDE.md).

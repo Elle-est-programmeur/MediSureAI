@@ -1,16 +1,73 @@
-# React + Vite
+# 🏥 MediSureAI — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React single-page app for MediSureAI. It provides role-based portals (Patient & Doctor) over
+the Spring Boot backend: document upload, AI chat, medical records, billing & payments, a
+patient timeline, and drug-formulary search.
 
-Currently, two official plugins are available:
+## 🧰 Tech Stack
+- **React 19** with hooks and Context API
+- **Vite 7** dev server & build
+- **Tailwind CSS 4** (via `@tailwindcss/vite`)
+- **React Router 7** for routing & role guards
+- **Framer Motion** for animations
+- **Axios** for the API layer
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## ⚡ Quick Start
 
-## React Compiler
+> Requires **Node.js 20.19+ or 22.12+** (Vite 7).
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+cd Frontend
+npm install
+npm run dev
+```
 
-## Expanding the ESLint configuration
+The app runs on `http://localhost:5173` and talks to the backend at `http://localhost:8080`.
+Make sure the backend is running first (see [`../Backend/README.md`](../Backend/README.md)).
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Scripts
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start the Vite dev server (HMR) |
+| `npm run build` | Production build to `dist/` |
+| `npm run preview` | Preview the production build |
+| `npm run lint` | Run ESLint |
+
+## 🔧 Configuration
+
+The API base URL is configured in `src/services/api.js` (defaults to `http://localhost:8080`).
+When running under Docker Compose it is provided via `VITE_API_BASE_URL`. Axios attaches the
+JWT access token and handles refresh-token rotation on `401` responses.
+
+## 📁 Project Structure
+
+```
+Frontend/src/
+├── main.jsx, App.jsx          # Entry point & route definitions
+├── pages/
+│   ├── Home.jsx, Login.jsx, Register.jsx, Dashboard.jsx
+│   ├── doctor/                # DoctorDashboard, DoctorPatients, RecordDetail,
+│   │                          # CreateRecord, CreateBilling, DoctorBilling
+│   └── patient/               # PatientDashboard, PatientChat, PatientDocuments,
+│                              # PatientRecords, PatientBilling, PatientTimeline,
+│                              # PatientProfile, PatientFormulary
+├── components/
+│   ├── ChatInterface.jsx, ChatThinkingBadge.jsx
+│   ├── DocumentUpload.jsx, FormularySearch.jsx, Timeline.jsx
+│   ├── Navbar.jsx, ParticleBackground.jsx, PaymentModal.jsx
+│   └── ui/                    # ConfirmDialog, EmptyState, LoadingSpinner, StatusBadge
+├── context/                   # AuthContext, ChatContext, ThemeContext, ToastContext
+├── services/api.js            # Axios client + endpoint wrappers
+└── styles/, *.css             # Tailwind entry + component styles
+```
+
+## 🔐 Auth & Roles
+- `AuthContext` stores the authenticated user and tokens, exposing `login`, `register`, and
+  `logout`.
+- Routes are guarded by role: **PATIENT** and **DOCTOR** see different dashboards and pages.
+- The backend enforces the same roles via `@PreAuthorize`, so the UI guards are convenience,
+  not the security boundary.
+
+## 🩺 Troubleshooting
+Common dev-server, port, Node-version, and API-connectivity issues are documented in
+[`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
