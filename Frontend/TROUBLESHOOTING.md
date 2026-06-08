@@ -4,7 +4,7 @@ Quick reference for common errors when starting the MediSureAI frontend (Vite + 
 
 **Normal start:**
 ```powershell
-cd C:\Users\shrey\MediSureAI\Frontend
+cd <diretory-name>
 npm run dev
 ```
 Expected: Vite prints `VITE v7.x ready` and serves on `http://localhost:5173`.
