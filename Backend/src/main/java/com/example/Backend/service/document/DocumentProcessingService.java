@@ -21,6 +21,8 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.file.Path;
@@ -84,7 +86,20 @@ public class DocumentProcessingService {
         Document saved = documentRepository.save(document);
         log.info("Document metadata saved [id={}] → enqueuing for processing", saved.getId());
 
-        messageProducer.sendForProcessing(saved.getId());
+        // Publish the processing message only AFTER this transaction commits.
+        // Otherwise the (very fast) RabbitMQ consumer can call findById() before the
+        // INSERT is visible and fail with "Document not found", stranding the upload.
+        final Long documentId = saved.getId();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    messageProducer.sendForProcessing(documentId);
+                }
+            });
+        } else {
+            messageProducer.sendForProcessing(documentId);
+        }
 
         return DocumentUploadResponse.builder()
                 .documentId(saved.getId())
